@@ -35,10 +35,10 @@ class figplotly():
     yaxis = ['y1','y2','y3','y4'] # 轴的编号
     yname = ['Agc','Pbat','SOC','机组'] # 轴的名字
     legends = [1,1,2,3] # 图例分组
+    xaxisname = 'Time'### 千万不要设成列表
     yaxisnum = dict(zip(columnsname,yaxis)) # key-value 对应
     yaxisname = dict(zip(yaxis,yname))#
     legends = dict(zip(columnsname,legends))
-    xaxisname = 'Time'
     colorsX = ['#1f77b4','#8dd3c7','#d62728','#ff7f0e','#fdb462','#fb8072','#80b1d3','#800080','#008D00']
     '''
     attention = "请给出想要绘制图形的列名'columnsname'\n对应绘制的轴'yaxis'\n对应的轴名'yname'\n分组编号'legends'\n以及横坐标名'xaxisname'"
@@ -488,6 +488,28 @@ class figecharts():
                 )
             make_snapshot(driver, Revenue.render(),path+'\\收益图.png')
             Line = pyecharts.charts.Line()
+            x_label1 = kpresult['Cost'].apply(lambda x:round(x)).tolist()[m:]
+            y_line = kpresult['Revenue'].tolist()[m:]
+            df = pd.DataFrame(columns=['成本','收益'])
+            df['成本'] = x_label1
+            df['收益'] = y_line
+            df.sort_values(by='成本',axis =0)
+            Reve_Cost = (Line
+                     .add_xaxis(df['成本'])
+                     .add_yaxis('成本-收益',
+                                df['收益'],
+                                symbol='circle',
+                                symbol_size=7,
+                                label_opts = opts.LabelOpts(is_show=False),
+                                linestyle_opts = opts.LineStyleOpts(width=3))
+                     .set_global_opts(
+                         title_opts = opts.TitleOpts(title='成本-收益/元',pos_left='center'),
+                         legend_opts = opts.LegendOpts(pos_left='right'),
+                         yaxis_opts = opts.AxisOpts(min_=round(min(y_line),2)-1,max_ = round(max(y_line),2)+1)
+                            )
+                    )
+            make_snapshot(driver, Reve_Cost.render(),path+'\\收益成本图.png')
+            Line = pyecharts.charts.Line()
             y_line = kpresult['elecFee'].tolist()[m:]
             elecFee = (Line
                   .add_xaxis(x_line[m:])
@@ -514,7 +536,7 @@ class figecharts():
                                      symbol = 'rect',
                                      symbol_size = 7,
                                      label_opts = opts.LabelOpts(is_show=False),
-                                     linestyle_opts = opts.LineStyleOpts(width=2))
+                                     linestyle_opts = opts.LineStyleOpts(width=3))
                             .add_yaxis('放电等效次数',
                                      y_line2,
                                      symbol = 'rect',
