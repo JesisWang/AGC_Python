@@ -19,10 +19,10 @@ class Check_data():
     def __init__(self,i):
         sta_config=pd.read_excel('D:/pyworkspace/Data_Get/assets/sta_cl_ah_config.xlsx')
         self.sta_codes,self.sta_names=sta_config['code'],sta_config['name']
-        self.index =      [  0,    1,    2,   5,    6,    7,   14,   15,    16,   33]  #调频电站序号
-        self.index_name = ['新丰','云河','准大','海丰','河源','宣化','同达','上都','平朔','鲤鱼江']
-        self.index_loc =  ['MX' ,'GD', 'MX' ,'GD', 'GD', 'HB', 'HB', 'HB', 'HB', 'GD']
-        #       i         [  0     1     2    3     4     5     6     7     8     9]
+        self.index =      [  0,    1,    2,   5,    6,    7,   14,   15,    16,   33  ,   4]  #调频电站序号
+        self.index_name = ['新丰','云河','准大','海丰','河源','宣化','同达','上都','平朔','鲤鱼江','兴和']
+        self.index_loc =  ['MX' ,'GD', 'MX' ,'GD', 'GD', 'HB', 'HB', 'HB', 'HB', 'GD' , 'MX']
+        #       i         [  0     1     2    3     4     5     6     7     8     9      10]
         # 电站i = 0~9
         self.Aim_names,self.Aim_names_Chinese =self.sta_names[self.index[i]],self.index_name[i]
         self.Aim_codes,self.location = self.sta_codes[self.index[i]],self.index_loc[i]
@@ -147,6 +147,9 @@ class Check_data():
                 data = pd.DataFrame(columns=['Agc','Pdg','Pall','Pbat'])
                 data['Agc'],data['Pdg'],data['Pbat'] = DF[jizu+'AGC'],DF[jizu+'机组出力'],DF['01储能']+DF['02储能']
                 data['Pall'] = data['Pdg']+data['Pbat']
+                data.index = pd.to_datetime(data.index,format=None)
+                bat.index = pd.to_datetime(bat.index,format=None)
+                Agc.index = pd.to_datetime(Agc.index,format=None)
             elif self.i in c:
                 print(self.Aim_names_Chinese+'无数据，请尝试换一个电站')
                 print('经查询：电站'+str(a)+'无数据 \n'+'电站'+str(b)+'有数据')
@@ -176,18 +179,21 @@ class deal_data():
             C = MX(stationname =  self.Chinese_name,Agc = self.data['Agc'],Pdg = self.data['Pdg'],Pall=self.data['Pall'],Pbat=self.data['Pbat'],time=self.time)
             A = operation_analyse(stationname =  self.Chinese_name,Agc = self.Agc,Pdg = self.Pdg,time = self.Agctime)
             ScanR = 1
+            k1,k2,k3,kp,D,Revenue = C.Kp_Revenue(ScanR =ScanR)
         elif self.location in 'GD':
             C = GD(stationname = self.Chinese_name,Agc = self.data['Agc'],Pdg =self.data['Pdg'],Pall=self.data['Pall'],Pbat=self.data['Pbat'],time=self.time)
             A = operation_analyse(stationname =  self.Chinese_name,Agc = self.Agc,Pdg = self.Pdg,time = self.Agctime)
             ScanR = 1
+            k1,k2,k3,kp,D,Revenue = C.Kp_Revenue_2018(ScanR =ScanR)
         elif self.location in 'HB':
             C = HB(stationname = self.Chinese_name,Agc = self.data['Agc'],Pdg =self.data['Pdg'],Pall=self.data['Pall'],Pbat=self.data['Pbat'],time=self.time)
             A = operation_analyse(stationname =  self.Chinese_name,Agc = self.Agc,Pdg = self.Pdg,time = self.Agctime)
             ScanR = 5
-        Result = A.AGCstrength(detAgc = detAgc)
+            k1,k2,k3,kp,D,Revenue = C.Kp_Revenue(ScanR =ScanR)
         BatResult,Cost,elecFee,Eqv_cycminus,Eqv_cycplus = C.BATstrength(initial_SOC = initial_SOC, detAgc =detAgc, scanrate =scanrate)
+        Result = A.AGCstrength(detAgc = detAgc)
         Result1,Op1,Op2,Op3,Op4,S,M,P = A.PDGstrength(detAgc= detAgc)
-        k1,k2,k3,kp,D,Revenue = C.Kp_Revenue(ScanR =ScanR)
         ResultSingle = pd.DataFrame(columns=['k1','k2','k3','kp','D','Revenue','Cost','elecFee','充电等效次数','放电等效次数','反调','不动','缓调','瞬间完成','有效','总次数','比例'])
         ResultSingle.loc[0] =k1,k2,k3,kp,D,Revenue,Cost,elecFee,Eqv_cycminus,Eqv_cycplus,Op1,Op2,Op3,Op4,S,M,P
+        print(k1,k2,k3,kp,D)
         return Result,Result1,BatResult,ResultSingle
