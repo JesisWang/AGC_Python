@@ -74,33 +74,33 @@ if __name__ == '__main__':
 #         makedir(file)
     # 自动获取程序
     path = r'E:\1伪D盘\AGC运行'
-#     K = Check_data(dianzhan)
-#     Aim_names,Aim_names_Chinese = K.Aim_names,K.Aim_names_Chinese
-#     index_loc = K.location
-#     data,time,Bat,Agc = K.webfile(jizu, sta_data_date, end_data_date)
-#     if data.empty:
-#         os._exit(0) # 在子程序中就是退出子程序
-#     Bat.to_csv(path+'\\'+Aim_names+'\\数据\\储能Data'+sta_data_date[0:10]+'-'+str(jizu)+'.csv',index = True,header=True,encoding='gbk')
-#     Agc.to_csv(path+'\\'+Aim_names+'\\数据\\AGCData'+sta_data_date[0:10]+'-'+str(jizu)+'.csv',index = True,header=True,encoding='gbk')
-#     Bat = Bat['01储能']+Bat['02储能']
-#     Pdg = Agc[Jizu+'机组出力']
-#     Agc = Agc[Jizu+'AGC']
+    K = Check_data(dianzhan)
+    Aim_names,Aim_names_Chinese = K.Aim_names,K.Aim_names_Chinese
+    index_loc = K.location
+    data,time,Bat,Agc = K.webfile(jizu, sta_data_date, end_data_date)
+    if data.empty:
+        os._exit(0) # 在子程序中就是退出子程序
+    Bat.to_csv(path+'\\'+Aim_names+'\\数据\\储能Data'+sta_data_date[0:10]+'-'+str(jizu)+'.csv',index = True,header=True,encoding='gbk')
+    Agc.to_csv(path+'\\'+Aim_names+'\\数据\\AGCData'+sta_data_date[0:10]+'-'+str(jizu)+'.csv',index = True,header=True,encoding='gbk')
+    Bat = Bat['01储能']+Bat['02储能']
+    Pdg = Agc[Jizu+'机组出力']
+    Agc = Agc[Jizu+'AGC']
 
 #     人工操作
-    a = pd.read_csv(r'E:\1伪D盘\AGC运行\河北宣化电厂储能电站\数据\储能Data2019-08-22-2.csv',index_col = 0,header = 0,encoding='gbk')
-    b = pd.read_csv(r'E:\1伪D盘\AGC运行\河北宣化电厂储能电站\数据\AGCData2019-08-22-2.csv',index_col = 0,header = 0,encoding='gbk')
-    df = pd.merge(a,b,left_index=True,right_index=True,how='inner')
-    data = pd.DataFrame(columns=['Agc','Pdg','Pall','Pbat'])
-    data['Agc'],data['Pdg'],data['Pbat'] = df[Jizu+'AGC'],df[Jizu+'机组出力'],df['01储能']+df['02储能']
-    data['Pall'] = data['Pdg']+data['Pbat']
-    Bat = a['01储能']+a['02储能']
-    Agc = b[Jizu+'AGC']
-    Pdg = b[Jizu+'机组出力']
-    time = pd.to_datetime(df.index,format='%Y-%m-%d %H:%M:%S')
-    time.columns = ['time']
-    Aim_names_Chinese = '宣化'
-    index_loc = 'HB'
-    Aim_names = sta_config['name'][index[dianzhan]]
+#     a = pd.read_csv(r'E:\1伪D盘\AGC运行\河北宣化电厂储能电站\数据\储能Data2019-08-22-2.csv',index_col = 0,header = 0,encoding='gbk')
+#     b = pd.read_csv(r'E:\1伪D盘\AGC运行\河北宣化电厂储能电站\数据\AGCData2019-08-22-2.csv',index_col = 0,header = 0,encoding='gbk')
+#     df = pd.merge(a,b,left_index=True,right_index=True,how='inner')
+#     data = pd.DataFrame(columns=['Agc','Pdg','Pall','Pbat'])
+#     data['Agc'],data['Pdg'],data['Pbat'] = df[Jizu+'AGC'],df[Jizu+'机组出力'],df['01储能']+df['02储能']
+#     data['Pall'] = data['Pdg']+data['Pbat']
+#     Bat = a['01储能']+a['02储能']
+#     Agc = b[Jizu+'AGC']
+#     Pdg = b[Jizu+'机组出力']
+#     time = pd.to_datetime(df.index,format='%Y-%m-%d %H:%M:%S')
+#     time.columns = ['time']
+#     Aim_names_Chinese = '宣化'
+#     index_loc = 'HB'
+#     Aim_names = sta_config['name'][index[dianzhan]]
 
 #     df = pd.read_csv(r'D:\华润海丰\Data\海丰项目26-29日AGC指令数据\29号.csv',encoding ='gbk',index_col=0,header=0)
 #     df.index = df['Date']

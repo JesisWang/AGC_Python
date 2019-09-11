@@ -59,7 +59,8 @@ class Check_data():
             time: 横坐标
         '''
         if Varname is None:
-            return print('必须给出变量名')
+            print('必须给出变量名')
+            return 
         
         if struct_name is not None:
             try:
