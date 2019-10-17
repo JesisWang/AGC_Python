@@ -8,7 +8,7 @@ from AGCanalyse.Base_analyse import MX,HB,GD,operation_analyse
 import os
 import sys
 sys.path.insert(0, r'D:\pyworkspace\Data_Get') # sys.path.append(path)也可以，只不过查询时是在最后位置，加载包的时候是按顺序查找包的
-from getAPI import getStaWork
+# from getAPI import getStaWork
 import pandas as pd
 
 
@@ -179,13 +179,14 @@ class deal_data():
         if self.location in 'MX':
             C = MX(stationname =  self.Chinese_name,Agc = self.data['Agc'],Pdg = self.data['Pdg'],Pall=self.data['Pall'],Pbat=self.data['Pbat'],time=self.time)
             A = operation_analyse(stationname =  self.Chinese_name,Agc = self.Agc,Pdg = self.Pdg,time = self.Agctime)
-            ScanR = 1
+            ScanR = 5
             k1,k2,k3,kp,D,Revenue = C.Kp_Revenue(ScanR =ScanR)
         elif self.location in 'GD':
             C = GD(stationname = self.Chinese_name,Agc = self.data['Agc'],Pdg =self.data['Pdg'],Pall=self.data['Pall'],Pbat=self.data['Pbat'],time=self.time)
             A = operation_analyse(stationname =  self.Chinese_name,Agc = self.Agc,Pdg = self.Pdg,time = self.Agctime)
             ScanR = 1
-            k1,k2,k3,kp,D,Revenue = C.Kp_Revenue_2018(ScanR =ScanR)
+#             Conclusion = C.Contribution()
+            k1,k2,k3,kp,D,Revenue = C.Kp_Revenue(ScanR =ScanR)
         elif self.location in 'HB':
             C = HB(stationname = self.Chinese_name,Agc = self.data['Agc'],Pdg =self.data['Pdg'],Pall=self.data['Pall'],Pbat=self.data['Pbat'],time=self.time)
             A = operation_analyse(stationname =  self.Chinese_name,Agc = self.Agc,Pdg = self.Pdg,time = self.Agctime)

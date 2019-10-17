@@ -61,7 +61,7 @@ class operation_analyse:
         Stationname = ['新丰','云河','海丰','河源','鲤鱼江','恒运','宣化','准大','兴和','上都','平朔','同达']
         Area =        ['蒙西','广东','广东','广东','广东' ,'广东','华北','蒙西','蒙西','华北','华北','华北']
         AREA = dict(zip(Stationname,Area))
-        Pe = [300,300,1000,600,300,300,330,300,300,600,300,300] # 机组额定功率
+        Pe = [300,330,1000,600,300,300,330,300,300,600,300,300] # 机组额定功率
         Pe = dict(zip(Stationname,Pe))
         self.Pe = Pe[stationname]
         BatPe = [9,9,30,18,12,15,9,9,9,18,9,9] # 电池的额定功率，固定值，写死
@@ -432,8 +432,9 @@ class MX(operation_analyse):
     '''
      计算蒙西的Kp值和收益
      stationname:电站名称，需要给出
+     2019-09-19 修正求取的参数
      '''
-    def Kp_Revenue(self,ScanR=5,ADJK1=2.1,minT=30,maxV=5,VarAgc=2,VarPdg=0.01,K1max=4.2,Back=0.05,mink=0.1,maxk=2):
+    def Kp_Revenue(self,ScanR=5,ADJK1=2.1,minT=30,maxV=5,VarAgc=2,VarPdg=0.01,K1max=4.2,Back=0.02,mink=0.1,maxk=2):
         '''
         该文档是用来计算蒙西电网K-D-Revenue的函数
         各参数含义如下：
@@ -453,7 +454,7 @@ class MX(operation_analyse):
         VarPdg:有效指令的Agc最小变化量系数，如0.01倍的机组额定功率
         VarAgc:相邻Agc的区分界限，如相差2MW及以上
         K1max:K1最大值，如4.2
-        Back:折返系数，如0.05
+        Back:折返系数，如0.02
         mink:k1，k2，k3的最小取值，一般为0.1
         maxk:k2,k3的最大取值，一般为2
             参数返回：
@@ -466,9 +467,9 @@ class MX(operation_analyse):
         '''
         if self.stationname in ['新丰','准大','兴和']:
             AGC = self.Agc
-            AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC.asfreq(freq='s');AGC.index.freq='s'
+            AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
             Pall = self.Pall
-            Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall.asfreq(freq='s');Pall.index.freq='s'
+            Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
             Prate = self.Pe
             dd1 = self.deadzone1 
             dd2 = self.deadzone2
@@ -493,22 +494,23 @@ class MX(operation_analyse):
             detPn = Pn
             Scanrate = ScanR
             ilast = AGC.index[0]
+            detP = 0
             for i in AGC.index:
-                if AGC[i] is not None:
+                if not np.isnan(AGC[i]) and not np.isnan(Pall[i]):
                     if (i-ilast).total_seconds() >= Scanrate:
                         if abs(AGC[i]-Agc) >= VarAgc:
                             '''Agc变化，结算上一条指令 的各项k值'''
-                            Pt3 = Pall[ilast]
-                            T3 = ilast
+                            Pt3 = Pall[i]
+                            T3 = i
                             if T1 == 0:
                                 '''若没有扫描到T1'''
-                                Pt1 = Pall[ilast]
-                                T1 = ilast
+                                Pt1 = Pall[i]
+                                T1 = i
                             
                             if T2 == 0:
                                 '''若没有扫描到T2'''
-                                Pt2 = Pall[ilast]
-                                T2 = ilast
+                                Pt2 = Pall[i]
+                                T2 = i
                             
                             if T2 < T1:
                                 '''时间上T1<=T2'''
@@ -538,12 +540,12 @@ class MX(operation_analyse):
                                 else:
                                     Vj = 0
                             
-                            if T03 <= minT or Agc-Pt0 <= Prate*VarPdg or Vj>maxV*Vn:
+                            if T03 <= minT or abs(Agc-Pt0) <= Prate*VarPdg or Vj>maxV*Vn:
                                 '''新丰有效指令判断:规则1：指令时长>30s，规则2:Agc与初始机组差值>0.01*Prate,规则3:速度V<5*标准速率，否则记为无效
                                 '''
                                 Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3 = [0]*9
                                 Tj,Vj,detP = [0]*3
-                                k1,k2,k3,kp,D,flag[1],Validity = [0]*7
+                                k1,k2,k3,kp,D,Validity = [0]*6
                             else:
                                 '''求k3'''
                                 Tj = (T1-T0).total_seconds()
@@ -552,7 +554,9 @@ class MX(operation_analyse):
                                 k1 = Vj/Vn
                                 if k1 > K1max :
                                     k1 = mink
-                                
+#                                 if k1 < 0.1:
+#                                     k1 = mink
+                                    
                                 if T23 != 0:
                                     '''求detP,进而求k2'''
                                     detP = detP/T23
@@ -565,13 +569,13 @@ class MX(operation_analyse):
                                 '''保存该条指令的记录'''
                                 Result.loc[ControlNo] = np.array([Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Tj,Vj,detP,k1,k2,k3,kp,D,flag[1],Validity])
                                 ControlNo += 1
+                                flag[0] = flag[1]
                             '''初始化下一条指令'''
                             Result.loc[ControlNo] = 0
                             Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3 = [0]*9
                             Tj,Vj,detP = [0]*3
                             k1,k2,k3,kp,D,Validity = [0]*6
                             Agc,Pt0,T0 = AGC[i],Pall[i],i
-                            flag[0] = flag[1]
                             if Agc > Pt0:
                                 flag[1] = 1
                             else:
@@ -586,7 +590,7 @@ class MX(operation_analyse):
                                 Pt2 = Pall[i]
                                 T2 = i
                             if T2 != 0:
-                                detP = detP+abs(Pall[i]-Agc)*(ilast-i).total_seconds()
+                                detP = detP+abs(Pall[i]-Agc)*(i-ilast).total_seconds()
                 
                         if i == AGC.index[-1]:
                             '''计算最后时刻点的数据，步骤同上'''
@@ -620,7 +624,7 @@ class MX(operation_analyse):
                                 Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3 = [0]*9
                                 Tj,Vj,detP = [0]*3
                                 k1,k2,k3,kp,D,flag[1],Validity = [0]*7
-                                Result.loc[ControlNo].pop()
+                                Result.loc[ControlNo] = 0
                             else:
                                 Tj = (T1-T0).total_seconds()
                                 k3 = max([mink,maxk-Tj/tn])
@@ -628,6 +632,8 @@ class MX(operation_analyse):
                                 k1 = Vj/Vn
                                 if k1 > K1max:
                                     k1 = mink
+                                if k1 <0.1:
+                                    k1 = 0.1
                                 
                                 if T23 != 0:
                                     detP = detP/T23
@@ -652,7 +658,8 @@ class MX(operation_analyse):
         meank3 = Result2.k3.mean(axis=0)
         meankp = meank1*meank2*meank3
         sumD = Result1.D.sum()
-        Revenue = meankp*sumD*0.02
+        Revenue = meankp*sumD*0.02*0.35*1000
+#         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
         return meank1,meank2,meank3,meankp,sumD,Revenue
 
 class GD(operation_analyse):
@@ -692,10 +699,10 @@ class GD(operation_analyse):
         6——收益Revenue
         '''
         AGC = self.Agc
-        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC.asfreq(freq='s');AGC.index.freq='s'
+        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
         
         Pall = self.Pall
-        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall.asfreq(freq='s');Pall.index.freq='s'
+        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
         
         Prate = self.Pe
         dd1 = self.deadzone1
@@ -711,11 +718,12 @@ class GD(operation_analyse):
                              ])
         ControlNo = 1
         Result.loc[ControlNo] = 0
-        Agc,Pt0,T0,lasti = AGC[0],Pall[0],0,AGC.index[0]
+        Agc,Pt0,T0,lasti = AGC[0],Pall[0],AGC.index[0],AGC.index[0]
         T1,T2,T3 = 0,0,0
         k1,k2,k3 = 0,0,0
         Pt1,Pt2,Pt3,detP = 0,0,0,0
         Pend,Pvst,Tvst,Pvend,Tvend = 0,0,0,0,0
+#         Psend = 1000
         Psend = 0.7*Agc+0.3*Pt0
         V1 = [0]
         DeadZone1,DeadZone2 = dd1,dd2
@@ -732,8 +740,9 @@ class GD(operation_analyse):
         Psd = max(0.01*Prate,5)
         Pt1_temp,T1_temp = 0,0
         V_all = []
+        Pss = max(Prate*0.01,10)
         for i in AGC.index:
-            if AGC[i] is not None:
+            if not np.isnan(AGC[i]) and not np.isnan(Pall[i]):
                 if (i-lasti).total_seconds() >= ScanR:
                     if abs(AGC[i]-Agc) >= detAgc:
                         '''结算上一条Agc指令的k值'''
@@ -741,7 +750,7 @@ class GD(operation_analyse):
                             T = 0
                         else:
                             T = (T3-T2).total_seconds()
-                        if (AGC[i]-Pt0)*flag[0]>0 and (AGC[i]-Agc)*flag[0]>0 and T<TminCon:
+                        if ((i-T0).total_seconds()<=2) or (AGC[i]-Pt0)*flag[0]>0 and (AGC[i]-Agc)*flag[0]>0 and T<TminCon:
                             '''合并条件:升出力方向相同；调节方向相同；进入死区时间不足20s，则合并，否则结算'''
                             if Tvst == 0 or Tvend == 0:
                                 Tv = 0
@@ -751,12 +760,14 @@ class GD(operation_analyse):
                                 Result.loc[ControlNo] = 0
                                 ControlNo = ControlNo+1
                                 Result.loc[ControlNo] = 0
+#                                 Psend = 0.7*AGC[i]+0.3*Agc
                                 Agc = AGC[i]
                                 Pt0 = Pall[i]
                                 T0 = i
                                 Psend = 0.7*Agc+0.3*Pt0
                                 flag[1] = Agc-Pt0
                             else:
+#                                 Psend = 0.7*AGC[i]+0.3*Agc
                                 Agc = AGC[i]
                                 Pt2 = 0
                                 T2 = 0
@@ -766,7 +777,7 @@ class GD(operation_analyse):
                                 if Tvend == 0:
                                     Pvst,Tvst,Pvend,Tvend = 0,0,0,0
                                 else:
-                                    if Pvend-Pvst >=DeadZone2 and Tv>TminTR:
+                                    if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
                                         if len(V1) == 1 and V1[0] == 0 :
                                             V1 = [abs((Pvend-Pvst)/Tv)*60]
                                         else:
@@ -787,6 +798,7 @@ class GD(operation_analyse):
                                 Result.loc[ControlNo] = 0
                                 ControlNo = ControlNo+1
                                 Result.loc[ControlNo] = 0
+#                                 Psend = 0.7*AGC[i]+0.3*Agc
                                 Agc = AGC[i]
                                 Pt0 = Pall[i]
                                 T0 = i
@@ -811,11 +823,16 @@ class GD(operation_analyse):
                                     else:
                                         Tj = k2set
                                 
+                                if abs(Agc-Pt0)>Pss:
+                                    Vn = 2*Prate*vc
+                                else:
+                                    Vn = Prate*vc
+                                
                                 if V1[0] == 0:
                                     if Tvst == 0 or Tvend == 0:
                                         Vj = k1set
                                     else:
-                                        if Pvend-Pvst >=DeadZone2 and Tv>TminTR:
+                                        if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
                                             Vj = V1 = abs((Pvend-Pvst)/Tv)*60
                                             V_all.append(V1)
                                             k1 = min(maxk1,Vj/Vn)
@@ -834,7 +851,7 @@ class GD(operation_analyse):
                                             Vj = np.mean(V1)
                                             k1 = min(maxk1,Vj/Vn)
                                     else:
-                                        if Pvend-Pvst >=DeadZone2 and Tv>TminTR:
+                                        if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
                                             Vj = abs((Pvend-Pvst)/Tv)*60
                                             V_all.append(Vj)
                                             if len(V1) == 0:
@@ -896,6 +913,7 @@ class GD(operation_analyse):
                                 Pend,Pvst,Tvst,Pvend,Tvend = [0]*5
                                 V1 = [0]
                                 Agc,Pt0,T0 = AGC[i],Pall[i],i
+#                                 Psend = 0.7*Agc + 0.3*lastAgc
                                 Psend = 0.7*Agc + 0.3*Pt0
                                 PMAX,PMIN = 0,Prate
                                 Pt1_temp,T1_temp = 0,0
@@ -993,7 +1011,7 @@ class GD(operation_analyse):
                             if Tvst == 0 or Tvend == 0:
                                 Vj = k1set
                             else:
-                                if Pvend-Pvst >=DeadZone2 and Tv>TminTR:
+                                if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
                                     Vj = V1 = abs((Pvend-Pvst)/Tv)*60
                                     V_all.append(Vj)
                                     k1 = min(maxk1,Vj/Vn)
@@ -1012,7 +1030,7 @@ class GD(operation_analyse):
                                     Vj = np.mean(V1)
                                     k1 = min(maxk1,Vj/Vn)
                             else:
-                                if Pvend-Pvst >=DeadZone2 and Tv>TminTR:
+                                if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
                                     Vj = abs((Pvend-Pvst)/Tv)*60
                                     V_all.append(Vj)
                                     if len(V1) == 0:
@@ -1129,10 +1147,10 @@ class GD(operation_analyse):
         6——收益Revenue
         '''
         AGC = self.Agc
-        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC.asfreq(freq='s');AGC.index.freq='s'
+        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC = AGC.asfreq(freq='s');AGC.index.freq='s'
         
         Pall = self.Pall
-        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall.asfreq(freq='s');Pall.index.freq='s'
+        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall = Pall.asfreq(freq='s');Pall.index.freq='s'
         
         Prate = self.Pe
         DeadZone1,DeadZone2 = self.deadzone1,self.deadzone2
@@ -1162,11 +1180,11 @@ class GD(operation_analyse):
         k1set,k2set,k3set = -1,-1,-1
         CountT = 0
         Psd = max(0.01*Prate,5)
-        PTi = max(0.02*Prate,20)
+        PTi = max(0.02*Prate*2,20)
         Pt1_temp,T1_temp = 0,0
         Tend_v,Pend_v = T0+int(abs(Agc-Pt0)*60/Vn+Scanrate+1),0
         for i in AGC.index:
-            if AGC[i] is not None:
+            if not np.isnan(AGC[i]) and not np.isnan(Pall[i]):
                 if (i-lasti).total_seconds() >= Scanrate:
                     if abs(AGC[i]-Agc) >= detAgc:
                         '''结算上一条Agc指令的k值'''
@@ -1174,7 +1192,7 @@ class GD(operation_analyse):
                             T = 0
                         else:
                             T = (T3-T2).total_seconds()
-                        if (AGC[i]-Pt0)*flag[0]>0 and (AGC[i]-Agc)*flag[0]>0 and T<=TminCon:
+                        if ((i-T0).total_seconds()<=2) or ((AGC[i]-Pt0)*flag[0]>0 and (AGC[i]-Agc)*flag[0]>0 and T<=TminCon):
                             '''合并条件:调节方向相同；升出力时，新目标大于上一次；进入死区时间不足15s，则合并，否则结算'''
                             if ControlNo == 1:
                                 Result.loc[ControlNo] = 0
@@ -1239,6 +1257,7 @@ class GD(operation_analyse):
                                     if Pvend == 0:
                                         Tvend = Tend_v
                                         Pvend = Pend_v
+                                    
                                     if abs(Pvend-Pvst)>=PTi+1:
                                         Vj = abs(Pvend-Pvst)/(Tvend-Tvst).total_seconds()*60
                                         k1 = min(maxk1,Vj/Vn)
@@ -1454,6 +1473,453 @@ class GD(operation_analyse):
         Revenue = sumD*meankp*Yagc
 #         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
         return meank1,meank2,meank3,meankp,sumD,Revenue
+    def Contribution(self,ScanR=1,VarAgc=0.005,maxk23=1,maxk1=5,TminCon=20,TminVt=30,TminTa=20,TmaxTa=40,TminTR=4,Yagc=12):
+        '''
+        该文档是用来计算广东区电站储能出力对完成指令的贡献分析
+        各参数含义如下：
+        AGC:电网下达的AGC功率指令值，功率单位MW，时间间隔1秒
+        Pall:联合功率值，功率单位MW，时间间隔为1秒
+        RowNum:为计算样本采样点数，时间间隔为1秒，若相邻数据间的间隔不为1秒，请处理源数据，如一天的样本为86400个(秒)
+        Prate:机组的额定功率，单位MW，如300MW
+        dd1:响应死区系数，如0.005
+        dd2:调节死区系数，如0.005
+        vc:机组额定速率系数，如0.015倍的机组额定功率
+        ts:标准响应时间，单位秒，如300s
+        Pn:标准响应偏差系数，如0.015的机组额定功率
+        ScanR:扫描频率，单位秒，如1秒
+        VarAgc:相邻Agc的区分界限系数，如0.005
+        maxk23:k2,k3的最大取值,如1
+        maxk1:k1的最大取值，如5
+        TminCon:指令合并时，进入死区最小持续时间，如15s
+        TminVt:测速最小持续时间，如30s
+        TminTa:进入死区后，最小保持时间，如20s
+        TmaxTa:进入死区后，最大测试维持时间，如40s
+        TminTR:有效出调节死区最小维持时间，如4s
+        Yagc:动态补偿金额
+        参数返回：
+        1——k1
+        2——k2
+        3——k3
+        4——Kp
+        5——里程D
+        6——收益Revenue
+        '''
+        AGC = self.Agc
+        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
+        
+        Pall = self.Pall
+        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
+        
+        Pdg = self.Pdg
+        Pdg.index = pd.to_datetime(Pdg.index,format = '%Y-%m-%d %H:%M:%S');Pdg=Pdg.asfreq(freq='s');Pdg.index.freq='s'
+        
+        Prate = self.Pe
+        BatPe = self.BatPe
+        dd1 = self.deadzone1
+        dd2 = self.deadzone2
+        vc = self.Vn/Prate
+        ts = self.tn
+        Pn = self.detPn
+        detAgc = VarAgc*Prate
+        Result = pd.DataFrame(columns = ['AGC','Pt0','T0','Pt1','T1','Pt2','T2','Pt3','T3',
+                             'Tj','Vj','detP',
+                             'k1','k2','k3','kp','Pend','D','flag','Pmax',
+                             'Pvst','Tvst','Pvend','Tvend','Validity','Revenue',
+                             'Pdg_end','Pbat_end','Pdg_t3','Pbat_t3','Pdg_v','Pbat_v','Pdg_t0'
+                             ])
+        ControlNo = 1
+        Result.loc[ControlNo] = 0
+        Agc,Pt0,T0,lasti,Pdg_t0 = AGC[0],Pall[0],AGC.index[0],AGC.index[0],Pdg[0]
+        T1,T2,T3,k1,k2,k3,Pt1,Pt2,Pt3,detP = 0,0,0,0,0,0,0,0,0,0
+        Pend,Pvst,Tvst,Pvend,Tvend,Pdg_t3,Pbat_t3,Pdg_v,Pbat_v = 0,0,0,0,0,0,0,0,0
+        Psend = 0.7*Agc+0.3*Pt0
+#         Psend = 1000
+        V1 = [0]
+        DeadZone1,DeadZone2 = dd1,dd2
+        PMAX,PMIN = 0,Prate
+        Vn = Prate*vc
+        tn = ts
+        detPn = Pn
+        Scanrate = ScanR
+        lastAgc = Pall[0]
+        flag = [1,0]
+        flag[1] = Agc-Pall[0]
+        k1set,k2set,k3set = -1,-1,-1
+        CountT = 0
+        Psd = max(0.01*Prate,5)
+        Pt1_temp,T1_temp = 0,0
+        V_all = []
+        Pss = max(Prate*0.01,10)
+        for i in AGC.index:
+            if not np.isnan(AGC[i]) and not np.isnan(Pall[i]):
+                if (i-lasti).total_seconds() >= ScanR:
+                    if abs(AGC[i]-Agc) >= detAgc:
+                        '''结算上一条Agc指令的k值'''
+                        if T2 == 0 or T3 == 0:
+                            T = 0
+                        else:
+                            T = (T3-T2).total_seconds()
+                        if Tvst == 0 or Tvend == 0:
+                            Tv = 0
+                        else:
+                            Tv = (Tvend-Tvst).total_seconds()
+                        if ControlNo == 1:
+                            Result.loc[ControlNo] = 0
+                            ControlNo = ControlNo+1
+                            Result.loc[ControlNo] = 0
+#                             Psend = 0.7*AGC[i]+0.3*Agc
+                            Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Pdg_t3 = [0]*10
+                            Pbat_t3,Pdg_v,Pbat_v = [0]*3
+                            Agc = AGC[i]
+                            Pt0 = Pall[i]
+                            T0 = i
+                            Psend = 0.7*Agc+0.3*Pt0
+                            flag[1] = Agc-Pt0
+                        else:
+                            Pend = Pall[i]
+                            Pdg_end = Pdg[i]
+                            Pbat_end = Pall[i]-Pdg[i]
+                            if flag[0]>0:
+                                Pmax = PMAX
+                            else:
+                                Pmax = PMIN
+                            
+                            if T1 == 0:
+                                '''计算k2，若没有，则置为0'''
+                                Tj = k2set
+                            else:
+                                Tj = (T1-T0).total_seconds()
+                                if Tj<tn:
+                                    k2 = maxk23-Tj/tn
+                                else:
+                                    Tj = k2set
+                            
+                            if abs(Agc-Pt0)>Pss:
+                                Vn = 2*Prate*vc
+                            else:
+                                Vn = Prate*vc
+                            
+                            if V1[0] == 0:
+                                if Tvst == 0 or Tvend == 0:
+                                    Vj = k1set
+                                else:
+                                    if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
+                                        Vj = V1 = abs((Pvend-Pvst)/Tv)*60
+                                        V_all.append(V1)
+                                        k1 = min(maxk1,Vj/Vn)
+                                    else:
+                                        Vj = k1set
+                            else:
+                                a = []
+                                for m in V1:
+                                    if m > 0:
+                                        a.append(m)
+                                V1 = a
+                                if Tvst == 0 or Tvend == 0:
+                                    if len(V1) == 0:
+                                        Vj = k1set
+                                    else:
+                                        Vj = np.mean(V1)
+                                        k1 = min(maxk1,Vj/Vn)
+                                else:
+                                    if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
+                                        Vj = abs((Pvend-Pvst)/Tv)*60
+                                        V_all.append(Vj)
+                                        if len(V1) == 0:
+                                            V1 = Vj
+                                        else:
+                                            V1.append(Vj)
+                                            Vj = np.mean(V1)
+                                        k1 = min(maxk1,Vj/Vn)
+                                    else:
+                                        if len(V1) == 0:
+                                            V1 = k1set
+                                        else:
+                                            Vj = np.mean(V1)
+                                            k1 = min(maxk1,Vj/Vn)
+                            if T>TminTa:
+                                '''进入调节死区必须维持20s以上才可计算'''
+                                '''计算k3，若没有，则置为0'''
+                                detP = detP/T*Scanrate
+                                k3 = maxk23-detP/detPn
+                            else:
+                                detP = k3set
+                            
+                            if T1 != 0:
+                                '''计算D，若没有，则置为0'''
+                                if T2 != 0:
+                                    D = flag[0]*(Agc - Pt0)
+                                else:
+                                    D = Pmax - Pt0
+                            else:
+                                D = 0
+                            
+                            if Vj>0 and Tj>0 and detP>0:
+                                '''若各个指标均有效时计算kp'''
+                                Validity = 1
+                                kp = 0.5*k1+0.25*k2+0.25*k3
+                                Revenue = kp*D*Yagc
+                            else:
+                                Validity = 0
+                                kp = 0
+                                Revenue = 0
+                            '''保存结果'''
+                            Result.loc[ControlNo] = np.array([Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Tj,Vj,detP,
+                                                              k1,k2,k3,kp,Pend,D,flag[0],Pmax,Pvst,Tvst,
+                                                              Pvend,Tvend,Validity,Revenue,Pdg_end,Pbat_end,
+                                                              Pdg_t3,Pbat_t3,Pdg_v,Pbat_v,Pdg_t0])
+                            '''初始化下一条数据'''
+                            ControlNo += 1
+                            Result.loc[ControlNo] = 0
+                            lastAgc = Agc
+                            Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Pbat_t3,Pdg_t3,Pdg_v,Pbat_v = [0]*13
+                            Tj,Vj,detP = [0]*3
+                            k1,k2,k3,kp,D,Validity,Revenue = [0]*7
+                            Pend,Pvst,Tvst,Pvend,Tvend = [0]*5
+                            V1 = [0]
+                            Agc,Pt0,T0,Pdg_t0 = AGC[i],Pall[i],i,Pdg[i]
+                            Psend = 0.7*Agc + 0.3*Pt0
+#                             Psend = 0.7*Agc+0.3*lastAgc
+                            PMAX,PMIN = 0,Prate
+                            Pt1_temp,T1_temp = 0,0
+                            if Agc>Pt0:
+                                flag[0] = 1
+                            else:
+                                flag[0] = -1
+                            flag[1] = Agc-lastAgc
+                    else:
+                        PMAX = max(PMAX,Pall[i])
+                        PMIN = min(PMIN,Pall[i])
+                        if Pvst == 0:
+                            if flag[0]>0:
+                                if Pall[i]>Pt0+Psd:
+                                    Pvst = Pall[i]
+                                    Tvst = i
+                            else:
+                                if Pall[i]<Pt0-Psd:
+                                    Pvst = Pall[i]
+                                    Tvst = i
+                        elif Pvend == 0:
+                            if flag[0]>0:
+                                if Pall[i]>Psend:
+                                    Pvend = Pall[i]
+                                    Tvend = i
+                                    Pdg_v = Pdg[i]
+                                    Pbat_v = Pall[i]
+                            else:
+                                if Pall[i]<Psend:
+                                    Pvend = Pall[i]
+                                    Tvend = i
+                                    Pdg_v = Pdg[i]
+                                    Pbat_v = Pall[i]
+                        if T1 == 0:
+                            if (Agc-Pt0)*(Pall[i]-Pt0)>0:
+                                if abs(Pall[i]-Pt0)>DeadZone1:
+                                    '''出响应死区并维持4s以上才可以算作出调节死区'''
+                                    CountT = CountT+1
+                                    if Pt1_temp == 0:
+                                        Pt1_temp = Pall[i]
+                                        T1_temp = i
+                                    if CountT>TminTR:
+                                        Pt1 = Pt1_temp
+                                        T1 = T1_temp
+                                        CountT = 0
+                                else:
+                                    CountT = 0
+                                    Pt1_temp = 0
+                                    T1_temp = 0
+                                    Pt2 = 0
+                                    T2 = 0
+                                    T3 = 0
+                                    detP = 0
+                        if T1_temp !=0 and T2==0 :
+                            if Agc>Pt0:
+                                if Pall[i]>Agc-DeadZone2:
+                                    '''进入调节死区'''
+                                    Pt2 = Pall[i]
+                                    T2 = i
+                            else:
+                                if Pall[i]<Agc+DeadZone2:
+                                    Pt2 = Pall[i]
+                                    T2 = i
+                        elif T2 != 0:
+                            if Pdg_t3 == 0:
+                                Pdg_t3 = Pdg[i]
+                                Pbat_t3 = Pall[i]-Pdg[i]
+                            if (i-T2).total_seconds()<=TmaxTa:
+                                '''累加调节精度，最多计数40s'''
+                                T3 = i
+                                Pt3 = Pall[i]
+                                detP = detP+abs(Agc-Pall[i])
+                    if i == AGC.index[-1]:
+                        Pend = Pall[i]
+                        if Tvst == 0 or Tvend == 0:
+                            Tv = 0
+                        else:
+                            Tv = (Tvend-Tvst).total_seconds()
+                        if T2 == 0 or T3 == 0:
+                            T = 0
+                        else:
+                            T = (T3-T2).total_seconds()
+                        if flag[0]>0:
+                            Pmax = PMAX
+                        else:
+                            Pmax = PMIN
+                        
+                        Pt3 = Pall[i]
+                        
+                        if T1 == 0:
+                            '''计算k2，若没有，则置为0'''
+                            Tj = k2set
+                        else:
+                            Tj = (T1-T0).total_seconds()
+                            if Tj<tn:
+                                k2 = maxk23-Tj/tn
+                            else:
+                                Tj = k2set
+                        
+                        if V1[0] == 0:
+                            if Tvst == 0 or Tvend == 0:
+                                Vj = k1set
+                            else:
+                                if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
+                                    Vj = V1 = abs((Pvend-Pvst)/Tv)*60
+                                    V_all.append(Vj)
+                                    k1 = min(maxk1,Vj/Vn)
+                                else:
+                                    Vj = k1set
+                        else:
+                            a = []
+                            for m in V1:
+                                if m>0:
+                                    a.append(m)
+                            V1 = a
+                            if Tvst == 0 or Tvend == 0:
+                                if len(V1) == 0:
+                                    Vj = k1set
+                                else:
+                                    Vj = np.mean(V1)
+                                    k1 = min(maxk1,Vj/Vn)
+                            else:
+                                if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
+                                    Vj = abs((Pvend-Pvst)/Tv)*60
+                                    V_all.append(Vj)
+                                    if len(V1) == 0:
+                                        V1 = Vj
+                                    else:
+                                        V1.append(Vj)
+                                        Vj = np.mean(V1)
+                                    k1 = min(maxk1,Vj/Vn)
+                                else:
+                                    if len(V1) == 0:
+                                        V1 = k1set
+                                    else:
+                                        Vj = np.mean(V1)
+                                        k1 = min(maxk1,Vj/Vn)
+                        if T>TminTa:
+                            '''进入调节死区必须维持20s以上才可计算'''
+                            '''计算k3，若没有，则置为0'''
+                            detP = detP/T*Scanrate
+                            k3 = maxk23-detP/detPn
+                        else:
+                            detP = k3set
+                         
+                        if T1 != 0:
+                            '''计算D，若没有，则置为0'''
+                            if T2 != 0:
+                                D = flag[0]*(Agc - Pt0)
+                            else:
+                                D = Pmax - Pt0
+                        else:
+                            D = 0
+                        
+                        if Vj>0 and Tj>0 and detP>0:
+                            '''若各个指标均有效时计算kp'''
+                            Validity = 1
+                            kp = 0.5*k1+0.25*k2+0.25*k3
+                            Revenue = kp*D*Yagc
+                        else:
+                            Validity = 0
+                            kp = 0
+                            Revenue = 0
+                        '''保存结果'''
+                        Result.loc[ControlNo] = np.array([Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Tj,Vj,detP,
+                                                              k1,k2,k3,kp,Pend,D,flag[0],Pmax,Pvst,Tvst,
+                                                              Pvend,Tvend,Validity,Revenue,Pdg_end,Pbat_end,
+                                                              Pdg_t3,Pbat_t3,Pdg_v,Pbat_v,Pdg_t0])
+                    lasti = i        
+
+#         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
+        Result.drop(index=1,inplace=True)
+#         Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Tj,Vj,detP,k1,k2,k3,kp,Pend,D,flag[0],Pmax,Pvst,
+#          0   1   2  3   4  5   6  7   8 9  10 11   12 13 14 15  16  17 18      19   20 
+#         Tvst,Pvend,Tvend,Validity,Revenue,Pdg_end,Pbat_end,Pdg_t3,Pbat_t3,Pdg_v,Pbat_v,Pdg_t0
+#         21    22    23     24      25        26      27      28     29      30     31    32
+#         指令持续时间,大于40MW,存在k1或k3,进入死区不足20s,未进死区,机组反调
+#             33       34      35        36         37    38
+        Result['指令持续时间'] = 0;Result['小于40MW'] = 0;Result['存在k1或k3'] = 0
+        for i in np.arange(len(Result)-1):
+            Result.iloc[i,33] = (Result.iloc[i,2]-Result.iloc[i+1,2]).total_seconds()
+            if Result.iloc[i,0]-Result.iloc[i,32]<=40: #Result.iloc[i,32]是以机组功率为40MW分割;Result.iloc[i,1]是以联合功率为40MW分割
+                Result.iloc[i,34] = 1
+            else:
+                Result.iloc[i,34] = 0
+            if Result.iloc[i,12]>0 or Result.iloc[i,14]>0:
+                Result.iloc[i,35] = 1
+            else:
+                Result.iloc[i,35] = 0
+        Result = Result[Result['指令持续时间']<=-5]
+        print('指令缺口小于40MW的条数：%.2f' %len(Result[(Result['小于40MW']==1)]))
+        df = Result[(Result['小于40MW']==1) & (Result['存在k1或k3']==1)]
+        print('指令缺口小于40MW且存在k1或k3的条数：%.2f' %len(df))
+        meank1 = df[df['k1']>0].mean().k1;meank2 = df[df['k2']>0].mean().k2;meank3 = df[df['k3']>0].mean().k3;meankp=meank1*0.5+meank2*0.25+meank3*0.25
+        print('k1=%.2f ;k2=%.2f ;k3=%.2f;kp=%.2f' %(meank1,meank2,meank3,meankp))
+        Result_reason = Result[(Result['小于40MW']==1) & (Result['存在k1或k3']==0)]
+        Result_reason['进入死区不足20s']=0;Result_reason['未进死区']=0;Result_reason['机组反调']=0
+        for i in np.arange(len(Result_reason)):
+            if (Result_reason.iloc[i,26]-Result_reason.iloc[i,32])*Result_reason.iloc[i,18]<0:
+                Result_reason.iloc[i,38] = 1
+            if (Result_reason.iloc[i,8] !=0):
+                Result_reason.iloc[i,36]=1
+            else:
+                if abs((Result_reason.iloc[i,1]-Result_reason.iloc[i,32])-Result_reason.iloc[i,27])>5:
+                    Result_reason.iloc[i,37]=1 # 未进死区且储能变化小于5MW
+        print('指令缺口小于40MW但不存在k1和k3:%.2f' %len(Result_reason))
+        print('到达死区没有维持20s:%.2f;未到达死区:%.2f;机组反向贡献:%.2f' %(sum(Result_reason['进入死区不足20s']),sum(Result_reason['未进死区']),sum(Result_reason['机组反调'])))
+        Result_contribution = pd.DataFrame(columns=['联合到达死区','储能贡献','机组贡献','flag','储能贡献度','机组贡献度','时间'])
+        for i in np.arange(len(Result)):
+            Result_contribution.loc[i]=0
+            Result_contribution.iloc[i,6] = Result.iloc[i,2]
+            Result_contribution.iloc[i,3] = Result.iloc[i,18]
+            if abs(Result.iloc[i,5]-Result.iloc[i,0])<=DeadZone2:
+                Result_contribution.iloc[i,0]=1
+                Result_contribution.iloc[i,1]=Result.iloc[i,29]-(Result.iloc[i,1]-Result.iloc[i,32])
+                Result_contribution.iloc[i,2]=Result.iloc[i,28]-Result.iloc[i,32]
+                if abs(Result_contribution.iloc[i,2])>100:
+                    Result_contribution.iloc[i,2]=Result.iloc[i,26]-Result.iloc[i,32]
+            else:
+                Result_contribution.iloc[i,0]=0
+                Result_contribution.iloc[i,1]=Result.iloc[i,27]-(Result.iloc[i,1]-Result.iloc[i,32])
+                Result_contribution.iloc[i,2]=Result.iloc[i,26]-Result.iloc[i,32]
+            # 采用调节功率作为贡献基数
+            Result_contribution.iloc[i,4] = Result_contribution.iloc[i,1]/(Result.iloc[i,0]-Result.iloc[i,1])*100
+            Result_contribution.iloc[i,5] = Result_contribution.iloc[i,2]/(Result.iloc[i,0]-Result.iloc[i,1])*100
+            Result_contribution.iloc[i,1]=Result_contribution.iloc[i,1]*Result_contribution.iloc[i,3]
+            Result_contribution.iloc[i,2]=Result_contribution.iloc[i,2]*Result_contribution.iloc[i,3]
+            # 采用机组和储能的加和功率作为贡献基数
+#             Result_contribution.iloc[i,1]=Result_contribution.iloc[i,1]*Result_contribution.iloc[i,3]
+#             Result_contribution.iloc[i,2]=Result_contribution.iloc[i,2]*Result_contribution.iloc[i,3]
+#             M = Result_contribution.iloc[i,1]+Result_contribution.iloc[i,2]
+#             if Result_contribution.iloc[i,1]<0 and Result_contribution.iloc[i,2]<0:
+#                 Result_contribution.iloc[i,4] = Result_contribution.iloc[i,1]/M*100*(-1)
+#                 Result_contribution.iloc[i,5] = Result_contribution.iloc[i,2]/M*100*(-1)
+#             else:
+#                 Result_contribution.iloc[i,4] = Result_contribution.iloc[i,1]/M*100
+#                 Result_contribution.iloc[i,5] = Result_contribution.iloc[i,2]/M*100
+        Result_contribution.to_csv(r'C:\Users\JesisW\Desktop\贡献度结果表.csv',encoding='gbk',header=True)
+        Result.to_csv(r'C:\Users\JesisW\Desktop\去掉5s以内变化的AGC指令的结果表.csv',encoding='gbk',header=True)
+        Result_reason.to_csv(r'C:\Users\JesisW\Desktop\在40MW以内的指令中没有有效k1或k3的原因结果表.csv',encoding='gbk',header=True)
+        return Result
         
 class HB(operation_analyse):
     '''
@@ -1489,9 +1955,9 @@ class HB(operation_analyse):
         6——收益Revenue
         '''
         AGC = self.Agc
-        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC.asfreq(freq='s');AGC.index.freq='s'
+        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
         Pall = self.Pall
-        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall.asfreq(freq='s');Pall.index.freq='s'
+        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
         Prate = self.Pe
         dd1 = self.deadzone1
         dd2 = self.deadzone2
@@ -1518,7 +1984,7 @@ class HB(operation_analyse):
         flag[1] = Agc-Pall[0]
         
         for i in AGC.index:
-            if AGC[i] is not None:
+            if not np.isnan(AGC[i]) and not np.isnan(Pall[i]):
                 if (i-lasti).total_seconds() >= ScanR:
                     '''注意不同区域定义k1，k2和k3略有不同'''
                     if abs(AGC[i]-Agc) >= VarAgc:
@@ -1705,4 +2171,147 @@ class HB(operation_analyse):
         print(Result.kp.mean(axis=0))
         sumD = Result.D.sum()
         Revenue = sumD*(math.log(meankp)+1)*Yagc
+#         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
         return meank1,meank2,meank3,meankp,sumD,Revenue
+
+class cost_perunit():
+    """
+    :计算各储能电站运行时的单位MWh成本
+    :参考链接D:\储能成本xlsx公式\Levelized Cost of Using Storage.xlsx
+    
+    :param cyc:预计循环总数
+    :param cyc_day:日预计循环数
+    :param Capacity:配置容量(MWh)
+    :param ues_electricity_day:日用电量(MWh)
+    :param efficiency:充放电转换效率(小数形式)
+    :param end_soh:电池报废截止SOH(小数形式)
+    :param EMS_soc:EMS控制运行soc行程(小数形式)
+    """
+    def __init__(self,cyc,cyc_day,Capacity,use_electricity_day,efficiency,end_soh,EMS_soc):
+        """
+        :param cyc:预计循环总数
+        :param cyc_day:日预计循环数
+        :param Capacity:配置容量(MWh)
+        :param ues_electricity_day:日用电量(MWh)
+        :param efficiency:充放电转换效率(小数形式)
+        :param end_soh:电池报废截止SOH(小数形式)
+        :param EMS_soc:EMS控制运行soc行程(小数形式)
+        """
+        self.cyc = cyc
+        self.cyc_day = cyc_day
+        self.Capacity = Capacity
+        self.use_electricity_day = use_electricity_day
+        self.efficiency = efficiency
+        self.end_soh = end_soh
+        self.EMS_soc = EMS_soc
+        self.year = self.cyc/self.cyc_day/365
+        self.DOD_average = (1+self.end_soh)/2
+    
+    def Initial_investment_cost(self,EPC=0,installation=0,transport=0,fax=0,Battery_all=0,cooling=0,control=0,PCS=0,pack=0,module=0,container=0):
+        """
+        : 初始投资成本核算,单位元,请将万元等单位转换为元
+        : EPC是总承包成本，若给出EPC则不用给出其他的参数
+        : battery_all是电池部分成本，若给出battery_all则不用给出其他电池成本
+        
+        :param EPC:总承包成本，包含所有成本，如电池、安装、运输、税费、制冷、控制、PCS、集装箱、基建等
+        :param installation:安装成本
+        :param transport:运输成本
+        :param fax:税费
+        :param battery_all:电池整体成本，包含制冷，控制，PCS成本，模组，集装箱等
+        :param cooling:制冷
+        :param control:控制
+        :param PCS:PCS成本
+        :param pack:簇
+        :param module:模组/电池
+        :param container:集装箱
+        
+        :return initial_investment_cost:初始投资成本
+        """
+        if EPC != 0:
+            self.initial_investment_cost = EPC
+            print('投资资金为:%d' %(self.initial_investment_cost))
+            return 
+        else:
+            self.initial_investment_cost = installation+transport+fax
+            if Battery_all !=0:
+                self.Battery_all = Battery_all
+                self.initial_investment_cost += Battery_all
+                print('投资资金为:%d' %self.initial_investment_cost)
+                return 
+            else:
+                self.Battery_all = cooling+control+PCS+pack+module+container
+                self.initial_investment_cost = self.initial_investment_cost+cooling+control+PCS+pack+module+container
+                print('投资资金为:%d' %self.initial_investment_cost)
+                return 
+    def Operation_cost(self,All=0,maintain=0,insurance=0,use_electricity=0,charge_cost=0,auxiliary=0,management=0,monitoring=0,recycl=0):
+        """
+        : 运行成本核算,使用期限内的全部运行成本
+        : 用电成本包含充电成本和辅助用电成本
+        
+        :param All:全部运行成本
+        :param maintain:运行维护成本
+        :param insurance:保险
+        :param use_electricity:用电成本
+        :param charge_cost:充电成本
+        :param auxiliary:辅助用电成本
+        :param management:管理成本
+        :param monitoring:监控成本
+        :param recycl:回收成本(一次成本)
+        
+        :return operation_cost:运行成本
+        """
+        if All != 0:
+            self.operation_cost=All
+            print('运行成本:%d' % self.operation_cost)
+            return
+        else:
+            if maintain == 0:
+                # 如果没给运行维护成本，则根据百分比计算
+                maintain = self.initial_investment_cost*0.002*self.year
+            if insurance ==0:
+                N = input('请选择是否有保险，有Y，没有N')
+                if 'Y' in N:
+                    insurance = self.initial_investment_cost*0.015*self.year
+                else:
+                    insurance = 0
+            self.operation_cost = self.operation_cost+maintain+insurance
+            
+            if management == 0:
+                management = self.initial_investment_cost*0.0015*self.year
+            self.operation_cost += management
+            
+            if monitoring == 0:
+                monitoring = self.initial_investment_cost*0.0015*self.year
+            self.operation_cost += monitoring
+            
+            if use_electricity !=0:
+                self.operation_cost += use_electricity
+                print('运行成本:%d' % self.operation_cost)
+                return
+            else:
+                charge_cost = self.cyc*self.Capacity*0.15*200
+                auxiliary = 5.31/15*self.Capacity*365*self.year*200
+                self.operation_cost = self.operation_cost+charge_cost+auxiliary+recycl
+                print('运行成本:%d' % self.operation_cost)
+                return
+    def Replacement_cost(self,year_insure=0):
+        """
+        : 若在质保年限中一次电源无法满足时需要更换电池整体
+        
+        :param year_insure: 承诺的使用年限
+        
+        :return repalcement_cost:替换成本
+        """
+        if year_insure == 0:
+            print('无需更换')
+            return
+        else:
+            change_times = year_insure//(int(self.year)+1)+1
+            for i in range(1,change_times):
+                self.replacement_cost += self.Battery_all*(0.75**change_times)
+    def Unit_cost(self):
+        self.per_init_cost = self.initial_investment_cost/self.Capacity
+        self.per_operat_cost_year = self.operation_cost/self.Capacity/self.year
+        self.unit_cost = (self.per_init_cost+self.per_operat_cost_year*self.year)/(self.cyc*self.efficiency*self.DOD_average*self.EMS_soc)
+        print('每MWh的放电成本:%.2f' % self.unit_cost)
+        return
