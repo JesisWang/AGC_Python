@@ -5,7 +5,6 @@ AGC_Pdgdata_man_made
 '''
 import pandas as pd
 import numpy as np
-from enum import Flag
 
 class Pdg_data():
     """
@@ -212,14 +211,380 @@ class Pdg_data():
                 det_T = self.Stabilitiy(last_Agc,det_T)
         return
 
+class AGC_control_GD():
+    """
+    :用来生成AGC控制策略中储能的输出
+     
+    :param Agc:1s每点的连续AGC数据 
+    :param Pdg:1s每点的连续机组数据 
+    :param Pdg_e:机组额定功率
+    :param Pbat_Pe:储能额定功率
+    :param Capacity:储能容量 
+    :param Area:所在地区
+    :param V:储能期望速率
+     
+    :return Pbat:储能输出功率
+    """
+    Pbat = []
+    def __init__(self,Agc,Pdg,Pdg_e,Pbat_Pe,Capacity,Area,V):
+        self.Agc = Agc
+        self.Pdg = Pdg
+        self.Pe = Pdg_e
+        self.Pbat_v = V
+        self.Pbat_Pe = Pbat_Pe
+        self.Pbat_Capacity = Capacity
+        self.V_t_period = 4 #测速时间
+        self.V_dead_zone = min(5,self.Pe*0.005)
+        if Area == '广东':
+            self.response_dead = min([self.Pe*0.005,5])
+            self.adjust_dead = min([self.Pe*0.005,5])
+            self.Vn = self.Pe*0.01903
+            self.tn = 300
+            self.detPn = self.Pe*0.015
+        return
+     
+    def Response(self,Pdg,Response_Aim,flag):
+        if flag>0:
+            Aim = max(Pdg,Response_Aim)
+            Bat = min(self.Pbat[-1]+self.V,Aim-Pdg)
+        else:
+            Aim = min(Pdg,Response_Aim)
+            Bat = max(self.Pbat[-1]-self.V,Aim-Pdg)
+        Bat = min(Bat,self.discharge)
+        Bat = max(Bat,self.charge)
+        self.Pbat.append(Bat)
+        return
+         
+    def TestV(self,start,end,Pdg,flag,lastAgc):
+        if (end-start)*flag<=0:
+            if flag>0:
+                Bat = self.Pbat[-1]+self.V
+                Bat = min(Bat,lastAgc-Pdg)
+            else:
+                Bat = self.Pbat[-1]-self.V
+                Bat = max(Bat,lastAgc-Pdg)
+            self.Pbat.append(Bat)
+            return
+        else:
+            if flag>0:
+                Bat = self.Pbat[-1]+self.V
+                Bat = min(Bat,end+1-Pdg)
+            else:
+                Bat = self.Pbat[-1]-self.V
+                Bat = max(Bat,end-1-Pdg)
+            self.Pbat.append(Bat)
+            
+        return
+    
+    def D_improve(self,flag):
+        if flag>0:
+            Bat = self.Pbat[-1]+self.V
+            Bat = min(Bat,self.discharge)
+        else:
+            Bat = self.Pbat[-1]-self.V
+            Bat = max(Bat,self.charge)
+        self.Pbat.append(Bat)
+        return
+    
+    def Ajust(self,lastAgc,Pdg,flag):
+        Aim = lastAgc-Pdg
+        if abs(Aim-self.Pbat[-1])>self.V:
+            if Aim<self.Pbat[-1]:
+                Bat = self.Pbat[-1]-self.V
+            else:
+                Bat = self.Pbat[-1]+self.V
+        else:
+            Bat = Aim
+        Bat = min(Bat,self.discharge)
+        Bat = max(Bat,self.charge)    
+        self.Pbat.append(Bat)
+        return
+    
+    def Reback(self,Pdg,Agc,Maintain_Value):
+        '''含有维护的程序'''
+        if self.SOC<40-Maintain_Value:
+            if Pdg>Agc:
+                '''有提供充电能力时维护'''
+                if self.Pbat[-1]>0:
+                    prob = min(Pdg-Agc,self.Pbat_Pe/20)
+                    Bat = min(self.V,self.Pbat[-1]+prob)
+                    Bat = self.Pbat[-1]-Bat
+                else:
+                    prob = min(Pdg-Agc,self.Pbat_Pe/20)
+                    Bat = min(self.V,-prob-self.Pbat[-1])
+                    Bat = self.Pbat[-1]+Bat
+            else:
+                '''否则不维护soc'''
+                if self.Pbat[-1]>0:
+                    Bat = min(self.V,self.Pbat[-1]-0)
+                    Bat = self.Pbat[-1]-Bat
+                else:
+                    Bat = min(self.V,0-self.Pbat[-1])
+                    Bat = self.Pbat[-1]+Bat
+        elif self.SOC>60+Maintain_Value:
+            if Pdg<Agc:
+                if self.Pbat[-1]>0:
+                    prob = min(Agc-Pdg,self.Pbat_Pe/20)
+                    Bat = min(self.V,self.Pbat[-1]-prob)
+                    Bat = self.Pbat[-1]-Bat
+                else:
+                    prob = min(Agc-Pdg,self.Pbat_Pe/20)
+                    Bat = min(self.V,prob-self.Pbat[-1])
+                    Bat = self.Pbat[-1]+Bat
+            else:
+                if self.Pbat[-1]>0:
+                    Bat = min(self.V,self.Pbat[-1]-0)
+                    Bat = self.Pbat[-1]-Bat
+                else:
+                    Bat = min(self.V,0-self.Pbat[-1])
+                    Bat = self.Pbat[-1]+Bat
+        else:
+            if self.Pbat[-1]>0:
+                Bat = min(self.V,self.Pbat[-1]-0)
+                Bat = self.Pbat[-1]-Bat
+            else:
+                Bat = min(self.V,0-self.Pbat[-1])
+                Bat = self.Pbat[-1]+Bat
+        self.Pbat.append(Bat)
+        return
+    
+    def Pbat_data_creat(self,V_mode=1,Maintain_mode=1,pull_D_mode=1):
+        """
+        :param V_mode:速率选择模式,1-固定速率,2-变速率
+        :param Maintain_mode:维护选择模式,0-不含有维护soc,1-含有维护soc
+        :param pull_D_mode:提升D选择模式,0-不提升D,1-提升D
+        """
+        Length = len(self.Agc)
+        test_v_response = max(self.Pe*0.01,5)
+        self.V_mode = V_mode
+        '''
+        :初始化
+        '''
+        lastAgc = self.Agc[0]
+        Pdg0 = self.Pdg[0]
+        if lastAgc>Pdg0:
+            flag = 1
+        else:
+            flag = -1
+        Response_Aim = self.response_dead*flag+Pdg0
+        test_v_start = Pdg0+test_v_response*flag
+        test_v_end = 0.7*lastAgc+0.3*Pdg0
+        Ajustment_Aim = -self.adjust_dead*flag+lastAgc
+        if Maintain_mode == 0:
+            Maintain_Value = 40 # 不维护soc
+        elif Maintain_mode == 1:
+            Maintain_Value = 0 # 维护soc
+            
+        if pull_D_mode == 0:
+            constant_D = 86400
+        elif pull_D_mode == 1:
+            constant_D = 0
+        
+        if self.V_mode == 1:
+            self.V = self.Pbat_v # 固定速率方法
+        else:
+            if (test_v_end-test_v_start)*flag<=self.V_dead_zone:
+                V_actual = 0
+            else:
+                V_actual = (test_v_end-test_v_start)*flag/self.V_t_period
+            self.V = max(V_actual,self.Pbat_v)# 变速率方法
+            self.V = min(self.V,10)
+        n = 0 # 用来计时60s
+        m = 0 # 调节时间40s
+        c = 0 # 用来计时4s
+        delay_time = 1 # 新来指令后的迟滞时间计时
+        Response_state = 0
+        V_state = 0
+        Ajust_state = 0
+        SOC_state = 0 # 是否响应D值
+        Finsh_state = 0 # 是否到达调节死区
+        if flag>0:
+            if test_v_end<Response_Aim or test_v_end<test_v_start:
+                V_state = 1
+            if Ajustment_Aim<Response_Aim:
+                Response_state = 1
+                V_state = 1
+                Ajust_state = 0
+            if Ajustment_Aim<test_v_end:
+                V_state = 1
+        self.Pbat.append(0)
+        self.charge = -self.Pbat_Pe
+        self.discharge = self.Pbat_Pe
+        self.SOC = 41.7
+        '''开始循环'''
+        for i in range(1,Length):
+            if i == 653:
+                print(i)
+#             print(i,len(self.Pbat))
+            lastPall = self.Pdg[i-1]+self.Pbat[i-1]
+            if abs(self.Agc[i]-lastAgc)>5:
+                lastAgc = self.Agc[i]
+                if lastAgc>lastPall:
+                    flag = 1
+                else:
+                    flag = -1
+                Response_Aim = self.response_dead*flag+lastPall
+                test_v_start = lastPall+test_v_response*flag
+                test_v_end = 0.7*lastAgc+0.3*lastPall
+                Ajustment_Aim = -self.adjust_dead*flag+lastAgc
+                Response_state = 0
+                V_state = 0
+                Ajust_state = 0
+                SOC_state = 0 # 是否响应D值
+                Finsh_state = 0 # 是否到达调节死区
+                if flag>0:
+                    if test_v_end<Response_Aim or test_v_end<test_v_start:
+                        V_state = 1
+                    if Ajustment_Aim<Response_Aim:
+                        Response_state = 1
+                        V_state = 1
+                        Ajust_state = 0
+                    if Ajustment_Aim<test_v_end:
+                        V_state = 1
+                if flag<0:
+                    if test_v_end>Response_Aim or test_v_end>test_v_start:
+                        V_state = 1
+                    if Ajustment_Aim>Response_Aim:
+                        Response_state = 1
+                        V_state = 1
+                        Ajust_state = 0
+                    if Ajustment_Aim>test_v_end:
+                        V_state = 1
+                if self.V_mode == 1:
+                    self.V = self.Pbat_v # 固定速率方法
+                elif self.V_mode == 2:
+                    if (test_v_end-test_v_start)*flag<=0:
+                        V_actual = 0
+                    else:
+                        V_actual = (test_v_end-test_v_start)*flag/self.V_t_period
+                    self.V = max(V_actual,self.Pbat_v)# 变速率方法
+                n = 0 # 用来计时60s
+                m = 0 # 调节时间40s
+                c = 0 # 用来计时4s
+                delay_time = 1 # 新来指令后的迟滞时间计时
+            if delay_time < 4:
+                '''迟滞3s'''
+                self.Pbat.append(self.Pbat[-1])
+                delay_time += 1
+            else:
+                if flag>0:
+                    '''进行响应死区的调节'''
+                    if Response_state == 0:#lastPall<=Response_Aim and
+                        self.Response(self.Pdg[i],Response_Aim,flag)
+                    elif V_state == 0:#Response_Aim<lastPall<=test_v_end and
+                        '''进行速度调节或D值调节'''
+                        n += 1
+                        if test_v_end-lastPall>self.discharge-self.Pbat[-1]:
+                            '''若储能自身无法完成测速'''
+                            if n <= 60+constant_D:
+                                '''若机组始终无法满足条件，60s内采用维持出死区状态处理'''
+                                self.Response(self.Pdg[i],Response_Aim,flag)
+                            else:
+                                '''60s后，若soc合理，则进行D值获取，否则仍旧维持原状'''
+                                if SOC_state == 0:
+                                    if self.SOC>30:
+                                        SOC_state = 1
+                                if SOC_state>0:
+                                    self.D_improve(flag)
+                                else:
+                                    self.Response(self.Pdg[i], Response_Aim, flag)
+                        else:
+                            '''储能自身可完成速率区间'''
+                            self.TestV(test_v_start, test_v_end, self.Pdg[i], flag,lastAgc)
+                        if (self.Pdg[i]+self.Pbat[-1]-test_v_end)*flag>=0:
+                            V_state = 1
+                        if i == len(self.Pbat)+2:
+                            self.Pbat.pop(-2)
+                    elif Ajust_state ==0:#lastPall>test_v_end and 
+                        '''进行调节死区响应'''
+                        if Finsh_state == 0:
+                            if lastAgc-self.response_dead<=lastPall<=lastAgc+self.response_dead:
+                                Finsh_state = 1
+                        if Finsh_state >0:
+                            m += 1
+                        if m<=60:
+                            '''进入调节死区维持60s'''
+                            self.Ajust(self.Agc[i],self.Pdg[i],flag)
+                        else:
+                            '''然后退出,进入维护SOC状态'''
+                            self.Reback(self.Pdg[i],self.Agc[i],Maintain_Value)
+                    if lastPall >= Response_Aim:
+                        c += 1
+                        if c>=4:
+                            Response_state = 1
+                if flag<0:
+                    '''进行响应死区的调节'''
+                    if Response_state == 0:
+                        self.Response(self.Pdg[i],Response_Aim,flag)
+                    elif V_state == 0:
+                        '''进行速度调节或D值调节'''
+                        n += 1
+                        if test_v_end-lastPall<self.charge-self.Pbat[-1]:
+                            if n <= 60+constant_D:
+                                self.Response(self.Pdg[i],Response_Aim,flag)
+                            else:
+                                if SOC_state == 0:
+                                    if self.SOC<70:
+                                        SOC_state = 1
+                                if SOC_state>0:
+                                    self.D_improve(flag)
+                                else:
+                                    self.Response(self.Pdg[i], Response_Aim, flag)
+                        else:
+                            self.TestV(test_v_start, test_v_end, self.Pdg[i], flag,lastAgc)
+                        if (self.Pdg[i]+self.Pbat[-1]-test_v_end)*flag>=0:
+                            V_state = 1
+                        if i == len(self.Pbat)+2:
+                            self.Pbat.pop(-2)
+                    elif Ajust_state ==0:
+                        '''进行调节死区响应'''
+                        if Finsh_state == 0:
+                            if lastAgc-self.response_dead<=lastPall<=lastAgc+self.response_dead:
+                                Finsh_state = 1
+                        if Finsh_state>0:
+                            m += 1
+                        if m<=40:
+                            self.Ajust(self.Agc[i],self.Pdg[i],flag)
+                        else:
+                            self.Reback(self.Pdg[i],self.Agc[i],Maintain_Value)
+                    if lastPall <= Response_Aim:
+                        c += 1
+                        if c>=4:
+                            Response_state = 1
+                self.SOC = self.SOC - self.Pbat[-1]*1/3600/self.Pbat_Capacity*100
+                print(self.SOC)
+                if self.SOC>95:
+                    self.charge = 0
+                    self.discharge = self.Pbat_Pe
+                elif self.SOC<5:
+                    self.discharge = 0
+                    self.charge = -self.Pbat_Pe
+                else:
+                    self.discharge = self.Pbat_Pe
+                    self.charge = -self.Pbat_Pe
+                delay_time += 1
+        return      
+     
 def main():
     file = r'E:\1伪D盘\EMS仿真平台\仿真测试数据1'
     df = pd.read_excel(file+'\\'+'组织测试数据1.xlsx',encoding='gbk',header=0)
     AGC = df['2#AGC指令']
-    f = Pdg_data(AGC,1000,30,0.005,0.015,0.02)
+    f = Pdg_data(AGC,1000,delay_zone=60,dead_zone=0.005,v_proportion=0.015,precision=0.02)
     f.Simulation()
     Pdg = pd.DataFrame(f.Pdg,columns=['Pdg'])
-    Pdg.to_csv(file+'\\'+'组织测试数据1-机组部分.csv',encoding='gbk',index=False,header=True)
+    Pdg.to_csv(file+'\\'+'组织测试数据1-机组部分-15MW-60s.csv',encoding='gbk',index=False,header=True)
+    return
+
+def main2():
+    file = r'E:\1伪D盘\EMS仿真平台\仿真测试数据1'
+    df = pd.read_excel(file+'\\'+'组织测试数据1.xlsx',encoding='gbk',header=0)
+    AGC = df['2#AGC指令']
+    PDG = df['2#机组出力']
+    f = AGC_control_GD(AGC,PDG,1000,30,15,'广东',3)
+    f.Pbat_data_creat()
+    Pbat = f.Pbat
+    Pbat = pd.DataFrame(Pbat);Pbat.columns = ['储能出力']
+    Pbat.to_csv(file+'\\'+'组织测试数据1-储能部分.csv',encoding='gbk',index=False,header=True)
     return
 if __name__ == '__main__':
-    main()
+    main2()
