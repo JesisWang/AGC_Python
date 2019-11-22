@@ -413,9 +413,6 @@ class AGC_control_GD():
         self.SOC = 41.7
         '''开始循环'''
         for i in range(1,Length):
-            if i == 653:
-                print(i)
-#             print(i,len(self.Pbat))
             lastPall = self.Pdg[i-1]+self.Pbat[i-1]
             if abs(self.Agc[i]-lastAgc)>5:
                 lastAgc = self.Agc[i]
@@ -430,7 +427,7 @@ class AGC_control_GD():
                 Response_state = 0
                 V_state = 0
                 Ajust_state = 0
-                SOC_state = 0 # 是否响应D值
+                SOC_state = 0 # 是否根据SOC响应D值
                 Finsh_state = 0 # 是否到达调节死区
                 if flag>0:
                     if test_v_end<Response_Aim or test_v_end<test_v_start:

@@ -36,6 +36,7 @@ class figplotly():
     yname = ['Agc','Pbat','SOC','机组'] # 轴的名字
     legends = [1,1,2,3] # 图例分组
     xaxisname = 'Time'### 千万不要设成列表
+    plotly.offline.plot(fig,filename='C:\\Users\\JesisW\\Desktop\\Ha.html')
     yaxisnum = dict(zip(columnsname,yaxis)) # key-value 对应
     yaxisname = dict(zip(yaxis,yname))#
     legends = dict(zip(columnsname,legends))
@@ -179,8 +180,8 @@ class figecharts():
 #     print('----------若使用方法figecharts----------')
 #     print('请给出相应的电站序号\n 0:新丰\n 1:云河\n 2:准大\n 3:海丰\n 4:河源\n 5:宣化\n 6:同达\n 7:上都\n 8:平朔\n 9:鲤鱼江\n')
     def __init__(self,i,Agcresult=None,BatResult=None,kpresult=None):
-        index_name = ['新丰','云河','准大','海丰','河源','宣化','同达','上都','平朔','鲤鱼江']
-        Area =  ['MX' ,'GD',' MX' ,'GD', 'GD', 'HB', 'HB', 'HB', 'HB', 'GD']
+        index_name = ['新丰','云河','准大','海丰','河源','宣化','同达','上都','平朔','鲤鱼江','兴和']
+        Area =  ['MX' ,'GD', 'MX' ,'GD', 'GD', 'HB', 'HB', 'HB', 'HB', 'GD' , 'MX']
         Stationname = ['新丰','云河','海丰','河源','鲤鱼江','恒运','宣化','准大','兴和','上都','平朔','同达']
         Pe = [300,300,1000,600,300,300,300,300,300,600,300,300]
         Pe = dict(zip(Stationname,Pe))
@@ -483,7 +484,8 @@ class figecharts():
                   .set_global_opts(
                       title_opts = opts.TitleOpts(title='收益/元',pos_left='center'),
                       legend_opts = opts.LegendOpts(pos_left='right'),
-                      yaxis_opts = opts.AxisOpts(min_ = round(min(y_line),2),max_ = round(max(y_line),2))
+                      xaxis_opts = opts.AxisOpts(name='成本/元',name_location='middle',name_gap=25),
+                      yaxis_opts = opts.AxisOpts(name='收益/元',name_location='middle',name_gap=25,min_ = round(min(y_line),2),max_ = round(max(y_line),2))
                       )
                 )
             make_snapshot(driver, Revenue.render(),path+'\\收益图.png')

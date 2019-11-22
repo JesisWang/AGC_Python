@@ -128,7 +128,6 @@ class operation_analyse:
             self.df['Pall'] = Pbat + Pdg
             self.Pall = Pbat + Pdg
 
-
     def AGCstrength(self,detAgc = 2):
         '''
         输入参数：
@@ -237,7 +236,7 @@ class operation_analyse:
                 Result.ix[N,9] = Tempdata.mean().total_seconds()
         return Result
     
-    def BATstrength(self,initial_SOC=50,detAgc=2,scanrate=1):
+    def BATstrength(self,initial_SOC=0,detAgc=2,scanrate=1):
         '''
         储能电站的强度分析曲线，若没有储能数据，则无法分析
         包含储能的运行成本分析
@@ -304,6 +303,64 @@ class operation_analyse:
         Cost = max([Eqv_cycplus,-Eqv_cycminus])/5000*0.4*1000*1000*Ee
         elecFee = (abs(MinusE_Pdg) - PlusE_Pdg)*0.25*1000
         return BatResult,Cost,elecFee,Eqv_cycminus,Eqv_cycplus
+    
+    def BATstrength_ems(self,charge1,charge2,discharge1,discharge2,initial_SOC=0,detAgc=2,scanrate=1):
+        BAT = self.df['Pbat']
+        PDG = self.Pdg
+        Ee = self.BatPe/2
+        BatPe = Ee*2
+        AGC = self.Agc
+        indexn = self.time
+        Length = len(AGC)
+        Plus_Pdg = BAT[(BAT>0)].sum()
+        Minus_Pdg = BAT[(BAT<0)].sum()
+        PlusE_Pdg = Plus_Pdg/3600
+        MinusE_Pdg = Minus_Pdg/3600
+        Eqv_cycplus = PlusE_Pdg/Ee
+        Eqv_cycminus = MinusE_Pdg/Ee
+        Bat = pd.DataFrame(columns=['储能充放功率','每次充放倍率','每次充放电量'])
+        BatResult = pd.DataFrame(columns=['Agc','正向调节功率','负向调节功率','等效2C放电时长','等效2C充电时长','DOD','累积放电深度','SOC','累积未跟踪数'])
+        Bat.iloc[:,0],Bat.iloc[:,1],Bat.iloc[:,2] = BAT,BAT/Ee,BAT/3600
+        ctl,Pz,Pf,DOD,Sd,SOC = 0,0,0,0,0,0
+        BatResult.loc[ctl] = 0
+        Agc,SOC0,i0,ia =AGC[0],initial_SOC,indexn[0],0
+        n,z = 0,0
+        for i in np.arange(0,Length):
+            if (indexn[i]-i0).total_seconds()>=scanrate:
+                del_t = (indexn[i]-i0).total_seconds()
+                if abs(AGC[i]-Agc)>detAgc:
+                    DOD = DOD/Ee*100
+                    if ctl == 0:
+                        Sd = DOD
+                        SOC = SOC0 - DOD
+                    else:
+                        Sd = Sd+DOD
+                        SOC = SOC - DOD
+                    BatResult.iloc[ctl,0:10] = np.array([Agc,Pz,Pf,Pz/BatPe,Pf/BatPe,DOD,Sd,SOC,n])
+                    ctl = ctl + 1
+                    BatResult.loc[ctl] = 0
+                    Agc,Pz,Pf,DOD = AGC[i],0,0,0
+                    z = 0
+                else:
+                    if BAT[ia]>0:
+                        Pz = Pz+BAT[ia]*del_t
+                    elif BAT[ia]<0:
+                        Pf = Pf+BAT[ia]*del_t
+                    for j in range(ia,i):
+                        DOD = DOD - BAT[j]*(indexn[j]-indexn[j+1]).total_seconds()/3600
+                    if AGC[i]>PDG[i] and z == 0:
+                        if discharge1[i]+discharge2[i]<=0.1*BatPe:
+                            n += 1
+                            z = 1
+                    if AGC[i]<PDG[i] and z == 0:
+                        if charge1[i]+charge2[i]>=-0.1*BatPe:
+                            n += 1
+                            z = 1
+                i0,ia = indexn[i],i
+        Cost = max([Eqv_cycplus,-Eqv_cycminus])/5000*0.4*1000*1000*Ee
+        elecFee = (abs(MinusE_Pdg) - PlusE_Pdg)*0.25*1000
+        print(n)
+        return BatResult,Cost,elecFee,Eqv_cycminus,Eqv_cycplus,n
     
     def PDGstrength(self,detAgc=2,ft_time=10):
         '''
@@ -541,7 +598,11 @@ class MX(operation_analyse):
                                     Vj = 0
                             
                             if T03 <= minT or abs(Agc-Pt0) <= Prate*VarPdg or Vj>maxV*Vn:
-                                '''新丰有效指令判断:规则1：指令时长>30s，规则2:Agc与初始机组差值>0.01*Prate,规则3:速度V<5*标准速率，否则记为无效
+                                '''
+                                :新丰有效指令判断:
+                                :规则1:指令时长>30s，
+                                :规则2:Agc与初始机组差值>0.01*Prate,
+                                :规则3:速度V<5*标准速率，否则记为无效
                                 '''
                                 Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3 = [0]*9
                                 Tj,Vj,detP = [0]*3
@@ -716,6 +777,7 @@ class GD(operation_analyse):
                              'k1','k2','k3','kp','Pend','D','flag','Pmax',
                              'Pvst','Tvst','Pvend','Tvend','Validity','Revenue'
                              ])
+        Vj = 0
         ControlNo = 1
         Result.loc[ControlNo] = 0
         Agc,Pt0,T0,lasti = AGC[0],Pall[0],AGC.index[0],AGC.index[0]
@@ -735,9 +797,10 @@ class GD(operation_analyse):
         lastAgc = Pall[0]
         flag = [1,0]
         flag[1] = Agc-Pall[0]
+        Psd = max(0.01*Prate,5)
+        Psst = Pt0+Psd
         k1set,k2set,k3set = -1,-1,-1
         CountT = 0
-        Psd = max(0.01*Prate,5)
         Pt1_temp,T1_temp = 0,0
         V_all = []
         Pss = max(Prate*0.01,10)
@@ -764,6 +827,10 @@ class GD(operation_analyse):
                                 Agc = AGC[i]
                                 Pt0 = Pall[i]
                                 T0 = i
+                                if flag[0]>0:
+                                    Psst = Pt0+Psd
+                                else:
+                                    Psst = Pt0-Psd
                                 Psend = 0.7*Agc+0.3*Pt0
                                 flag[1] = Agc-Pt0
                             else:
@@ -773,16 +840,21 @@ class GD(operation_analyse):
                                 T2 = 0
                                 T3 = 0
                                 detP = 0
+                                if flag[0]>0:
+                                    Psst = Pall[i]+Psd
+                                else:
+                                    Psst = Pall[i]-Psd
                                 Psend = 0.7*Agc+0.3*Pall[i]
                                 if Tvend == 0:
                                     Pvst,Tvst,Pvend,Tvend = 0,0,0,0
                                 else:
                                     if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
-                                        if len(V1) == 1 and V1[0] == 0 :
-                                            V1 = [abs((Pvend-Pvst)/Tv)*60]
-                                        else:
-                                            V1.append(abs((Pvend-Pvst)/Tv)*60)
-                                        V_all.append(abs((Pvend-Pvst)/Tv)*60)
+                                        if abs((Pvend-Pvst)/Tv)*60<5*Vn:
+                                            if len(V1) == 1 and V1[0] == 0 :
+                                                V1 = [abs((Pvend-Pvst)/Tv)*60]
+                                            else:
+                                                V1.append(abs((Pvend-Pvst)/Tv)*60)
+                                            V_all.append(abs((Pvend-Pvst)/Tv)*60)
                                     else:
                                         if len(V1) == 1 and V1[0] == 0:
                                             V1 = [k1set]
@@ -795,6 +867,8 @@ class GD(operation_analyse):
                             else:
                                 Tv = (Tvend-Tvst).total_seconds()
                             if ControlNo == 1:
+                                T0,Pt0,T1,Pt2,T2,Pt3,T3 = [0]*7
+                                Pt1_temp,T1_temp = 0,0
                                 Result.loc[ControlNo] = 0
                                 ControlNo = ControlNo+1
                                 Result.loc[ControlNo] = 0
@@ -802,6 +876,10 @@ class GD(operation_analyse):
                                 Agc = AGC[i]
                                 Pt0 = Pall[i]
                                 T0 = i
+                                if flag[0]>0:
+                                    Psst = Pt0+Psd
+                                else:
+                                    Psst = Pt0-Psd
                                 Psend = 0.7*Agc+0.3*Pt0
                                 flag[1] = Agc-Pt0
                             else:
@@ -823,7 +901,7 @@ class GD(operation_analyse):
                                     else:
                                         Tj = k2set
                                 
-                                if abs(Agc-Pt0)>Pss:
+                                if abs(Agc-Pt0)>Pss*10000:
                                     Vn = 2*Prate*vc
                                 else:
                                     Vn = Prate*vc
@@ -833,9 +911,10 @@ class GD(operation_analyse):
                                         Vj = k1set
                                     else:
                                         if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
-                                            Vj = V1 = abs((Pvend-Pvst)/Tv)*60
-                                            V_all.append(V1)
-                                            k1 = min(maxk1,Vj/Vn)
+                                            if abs((Pvend-Pvst)/Tv)*60<5*Vn:
+                                                Vj = V1 = abs((Pvend-Pvst)/Tv)*60
+                                                V_all.append(V1)
+                                                k1 = min(maxk1,Vj/Vn)
                                         else:
                                             Vj = k1set
                                 else:
@@ -852,13 +931,14 @@ class GD(operation_analyse):
                                             k1 = min(maxk1,Vj/Vn)
                                     else:
                                         if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
-                                            Vj = abs((Pvend-Pvst)/Tv)*60
-                                            V_all.append(Vj)
-                                            if len(V1) == 0:
-                                                V1 = Vj
-                                            else:
-                                                V1.append(Vj)
-                                                Vj = np.mean(V1)
+                                            if abs((Pvend-Pvst)/Tv)*60<5*Vn:
+                                                Vj = abs((Pvend-Pvst)/Tv)*60
+                                                V_all.append(Vj)
+                                                if len(V1) == 0:
+                                                    V1 = Vj
+                                                else:
+                                                    V1.append(Vj)
+                                                    Vj = np.mean(V1)
                                             k1 = min(maxk1,Vj/Vn)
                                         else:
                                             if len(V1) == 0:
@@ -866,7 +946,7 @@ class GD(operation_analyse):
                                             else:
                                                 Vj = np.mean(V1)
                                                 k1 = min(maxk1,Vj/Vn)
-                                
+#                                 print(V1)
         #                         if T2-T1>TminVt:
         #                             '''计算k1，若没有，则置为0'''
         #                             Vj = abs(Pt2-Pt0)/(T2-T0)
@@ -919,19 +999,21 @@ class GD(operation_analyse):
                                 Pt1_temp,T1_temp = 0,0
                                 if Agc>Pt0:
                                     flag[0] = 1
+                                    Psst = Pt0+Psd
                                 else:
                                     flag[0] = -1
+                                    Psst = Pt0-Psd
                                 flag[1] = Agc-lastAgc
                     else:
                         PMAX = max(PMAX,Pall[i])
                         PMIN = min(PMIN,Pall[i])
                         if Pvst == 0:
                             if flag[0]>0:
-                                if Pall[i]>Pt0+Psd:
+                                if Pall[i]>Psst:
                                     Pvst = Pall[i]
                                     Tvst = i
                             else:
-                                if Pall[i]<Pt0-Psd:
+                                if Pall[i]<Psst:
                                     Pvst = Pall[i]
                                     Tvst = i
                         elif Pvend == 0:
@@ -1012,9 +1094,10 @@ class GD(operation_analyse):
                                 Vj = k1set
                             else:
                                 if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
-                                    Vj = V1 = abs((Pvend-Pvst)/Tv)*60
-                                    V_all.append(Vj)
-                                    k1 = min(maxk1,Vj/Vn)
+                                    if abs((Pvend-Pvst)/Tv)*60<5*Vn:
+                                        Vj = V1 = abs((Pvend-Pvst)/Tv)*60
+                                        V_all.append(Vj)
+                                        k1 = min(maxk1,Vj/Vn)
                                 else:
                                     Vj = k1set
                         else:
@@ -1031,13 +1114,14 @@ class GD(operation_analyse):
                                     k1 = min(maxk1,Vj/Vn)
                             else:
                                 if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
-                                    Vj = abs((Pvend-Pvst)/Tv)*60
-                                    V_all.append(Vj)
-                                    if len(V1) == 0:
-                                        V1 = Vj
-                                    else:
-                                        V1.append(Vj)
-                                        Vj = np.mean(V1)
+                                    if abs((Pvend-Pvst)/Tv)*60<5*Vn:
+                                        Vj = abs((Pvend-Pvst)/Tv)*60
+                                        V_all.append(Vj)
+                                        if len(V1) == 0:
+                                            V1 = Vj
+                                        else:
+                                            V1.append(Vj)
+                                            Vj = np.mean(V1)
                                     k1 = min(maxk1,Vj/Vn)
                                 else:
                                     if len(V1) == 0:
@@ -1045,6 +1129,7 @@ class GD(operation_analyse):
                                     else:
                                         Vj = np.mean(V1)
                                         k1 = min(maxk1,Vj/Vn)
+#                         print(V1)
                         if T>TminTa:
                             '''进入调节死区必须维持20s以上才可计算'''
                             '''计算k3，若没有，则置为0'''
@@ -1072,8 +1157,8 @@ class GD(operation_analyse):
                             kp = 0
                             Revenue = 0
                         '''保存结果'''
-                        Result.loc[ControlNo] = np.array([Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Tj,Vj,detP,k1,k2,k3,kp,Pend,D,flag[0],Pmax,Pvst,Tvst,Pvend,Tvend,Validity,Revenue])
-                    lasti = i        
+#                         Result.loc[ControlNo] = np.array([Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Tj,Vj,detP,k1,k2,k3,kp,Pend,D,flag[0],Pmax,Pvst,Tvst,Pvend,Tvend,Validity,Revenue])
+                    lasti = i
     #     for j in np.arange(len(Result)):
     #         if Result.loc[j,Vj]>-1:
     #             K1 = K1+Result.loc[j,Vj]
@@ -1112,6 +1197,7 @@ class GD(operation_analyse):
         meank3 = Result.k3[(Result.k3>0)].mean()
         meankp = 0.5*meank1+0.25*meank2+0.25*meank3
         sumD = Result.D.sum()
+        print('k1:%.2f \n k2:%.2f \n k3:%.2f \n kp:%.2f \n D:%.2f' %(meank1,meank2,meank3,meankp,sumD))
         Revenue = sumD*meankp*Yagc
 #         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
         return meank1,meank2,meank3,meankp,sumD,Revenue
@@ -1926,7 +2012,7 @@ class HB(operation_analyse):
      计算华北的Kp值和收益
      stationname:电站名称，需要给出
     '''
-    def Kp_Revenue(self,ScanR=3,VarAgc=5,Back=0.005,mink=0.1,maxk=2,Yagc=5.2):
+    def Kp_Revenue(self,ScanR=5,VarAgc=5,Back=0.02,mink=0.1,maxk=2,Yagc=5):
 
         '''
         该文档是用来计算华北区电站K-D-Revenue的函数
@@ -1940,12 +2026,12 @@ class HB(operation_analyse):
         vc:机组额定速率系数，如0.015倍的机组额定功率
         ts:标准响应时间，单位秒，如60s
         Pn:标准响应偏差系数，如0.008的机组额定功率
-        ScanR:扫描频率，单位秒，如3秒
+        ScanR:扫描频率，单位秒，如5秒
         VarAgc:相邻Agc的区分界限，如相差5MW及以上
-        Back:折返系数，如0.05
+        Back:折返系数，如0.02(2%)
         mink:k1，k2，k3的最小取值，一般为0.1
         maxk:k2,k3的最大取值，一般为2
-        Yagc:单位补偿金额
+        Yagc:单位补偿金额，5元/MW
             参数返回：
         1——k1
         2——k2
@@ -2001,10 +2087,12 @@ class HB(operation_analyse):
                             
                         if Agc-Pt0>0:
                             if MAXP == 0:
+                                print(i)
                                 print('%.2f' %D)
                                 D = 0
                         else:
                             if MINP == Prate:
+                                print(i)
                                 print('%.2f' %D)
                                 D = 0
                             
@@ -2061,7 +2149,7 @@ class HB(operation_analyse):
                             k1 = max([mink,maxk-Vn/Vj])
                         '''求kp'''
                         kp = k1*k2*k3
-                        Revenue = max([0,D*(math.log(kp+1))*Yagc])
+                        Revenue = max([0,D*(math.log(kp)+1)*Yagc])
                         Validity = 1
                         Result.loc[ControlNo] = np.array([Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Tj,Vj,detP,k1,k2,k3,kp,D,flag[1],Validity,Revenue])
                         '''初始化下一条指令'''
@@ -2157,7 +2245,7 @@ class HB(operation_analyse):
                             D = abs(min([MAXP,Agc])-Pt0)+Prate*Back*flag[0]
                         else:
                             D = abs(max([MINP,Agc])-Pt0)+Prate*Back*flag[0]
-                        Revenue = max([0,D*(math.log(kp+1))*Yagc])
+                        Revenue = max([0,D*(math.log(kp)+1)*Yagc])
                         Validity = 1
                         Result.loc[ControlNo] = np.array([Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Tj,Vj,detP,k1,k2,k3,kp,D,flag[1],Validity,Revenue])
                     lasti = i
@@ -2167,9 +2255,13 @@ class HB(operation_analyse):
         meank1 = Result.k1.mean(axis=0)#对k1求平均值
         meank2 = Result.k2.mean(axis=0)
         meank3 = Result.k3.mean(axis=0)
+        meank1 = min(meank1,1.5)
+        meank2 = min(meank2,1.5)
+        meank3 = min(meank3,1.5)
         meankp = meank1*meank2*meank3
         print(Result.kp.mean(axis=0))
         sumD = Result.D.sum()
+        print('k1:%.2f \n k2:%.2f \n k3:%.2f \n kp:%.2f \n D:%.2f' %(meank1,meank2,meank3,meankp,sumD))
         Revenue = sumD*(math.log(meankp)+1)*Yagc
 #         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
         return meank1,meank2,meank3,meankp,sumD,Revenue

@@ -179,7 +179,7 @@ class deal_data():
         if self.location in 'MX':
             C = MX(stationname =  self.Chinese_name,Agc = self.data['Agc'],Pdg = self.data['Pdg'],Pall=self.data['Pall'],Pbat=self.data['Pbat'],time=self.time)
             A = operation_analyse(stationname =  self.Chinese_name,Agc = self.Agc,Pdg = self.Pdg,time = self.Agctime)
-            ScanR = 5
+            ScanR = 1
             k1,k2,k3,kp,D,Revenue = C.Kp_Revenue(ScanR =ScanR)
         elif self.location in 'GD':
             C = GD(stationname = self.Chinese_name,Agc = self.data['Agc'],Pdg =self.data['Pdg'],Pall=self.data['Pall'],Pbat=self.data['Pbat'],time=self.time)
@@ -192,10 +192,10 @@ class deal_data():
             A = operation_analyse(stationname =  self.Chinese_name,Agc = self.Agc,Pdg = self.Pdg,time = self.Agctime)
             ScanR = 5
             k1,k2,k3,kp,D,Revenue = C.Kp_Revenue(ScanR =ScanR)
-        BatResult,Cost,elecFee,Eqv_cycminus,Eqv_cycplus = C.BATstrength(initial_SOC = initial_SOC, detAgc =detAgc, scanrate =scanrate)
+        BatResult,Cost,elecFee,Eqv_cycminus,Eqv_cycplus = C.BATstrength(initial_SOC = 0, detAgc =detAgc, scanrate =scanrate)
         Result = A.AGCstrength(detAgc = detAgc)
         Result1,Op1,Op2,Op3,Op4,S,M,P = A.PDGstrength(detAgc= detAgc)
         ResultSingle = pd.DataFrame(columns=['k1','k2','k3','kp','D','Revenue','Cost','elecFee','充电等效次数','放电等效次数','反调','不动','缓调','瞬间完成','有效','总次数','比例'])
         ResultSingle.loc[0] =k1,k2,k3,kp,D,Revenue,Cost,elecFee,Eqv_cycminus,Eqv_cycplus,Op1,Op2,Op3,Op4,S,M,P
-        print(k1,k2,k3,kp,D)
+#         print(k1,k2,k3,kp,D)
         return Result,Result1,BatResult,ResultSingle
