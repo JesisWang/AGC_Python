@@ -11,26 +11,14 @@ import pyecharts
 from pyecharts import options as opts
 from pyecharts.render.snapshot import make_snapshot
 from snapshot_selenium import snapshot as driver
-# path = r'D:\EMScase\代码\仿真结果与原有控制对比.xlsx'
-# df = pd.read_excel(path,sheet_name=None,encoding = 'gbk')
-# df1 = df['数据0331']
-# columnsname = df1.keys()[1:6]
-# yaxis = ['y1','y1','y1','y2','y3']
-# yname = ['功率/MW','功率/MW','功率/MW','储能功率/MW','SOC']
-# legends = [1,2,3,4,5]
-# yaxisnum = dict(zip(columnsname,yaxis))
-# yaxisname = dict(zip(yaxis,yname))
-# legends = dict(zip(columnsname,legends))
-# xaxisname = 't'
-# colorsX = ['#1f77b4','#8dd3c7','#d62728','#ff7f0e','#fdb462','#fb8072','#80b1d3','#800080','#008D00']
 
 class figplotly():
     '''
-    由于经常需要画plotly交互图，因而对该部分进行代码话，自动根据变量名画图
+    :由于经常需要画plotly交互图，因而对该部分进行代码话，自动根据变量名画图
+    
     example:
-    path = r'C'
+    path = 'C:\\Users\\desktop\\c.csv
     df = pd.read_csv(path,encoding = 'gbk')
-     
     columnsname = df.keys()
     yaxis = ['y1','y2','y3','y4'] # 轴的编号
     yname = ['Agc','Pbat','SOC','机组'] # 轴的名字
@@ -43,9 +31,10 @@ class figplotly():
     colorsX = ['#1f77b4','#8dd3c7','#d62728','#ff7f0e','#fdb462','#fb8072','#80b1d3','#800080','#008D00']
     '''
     attention = "请给出想要绘制图形的列名'columnsname'\n对应绘制的轴'yaxis'\n对应的轴名'yname'\n分组编号'legends'\n以及横坐标名'xaxisname'"
-#     print('----------若使用方法figplotly------------')
-#     print(attention)
+    
     def __init__(self,columnsname,yaxis,yname,legends,xaxisname):
+#         print('----------若使用方法figplotly------------')
+#         print(self.attention)
         self.columnsname = columnsname
         self.yaxisnum = dict(zip(columnsname,yaxis))
         self.yaxisname = dict(zip(yaxis,yname))
@@ -552,3 +541,24 @@ class figecharts():
                             )
             make_snapshot(driver, DengXcircle.render(),path+'\\等效循环图.png')
         return
+
+class Color_plot():
+    '''
+    :本示例无输出输入
+    '''
+    def __init__(self):
+        text = "本类中主要是保存画图配色方案的，并无实际输出值，内存在一个函数将RGB转换为十六进制"
+        print(text)
+        return
+    def Color_program(self):
+        color_5_Circus3 = [[46,9,39],[217,0,0],[255,45,0],[255,140,0],[4,117,111]]
+        color_5_VitaminC = [[0,67,88],[31,138,112],[190,219,57],[255,255,26],[253,116,0]]
+        color_5_BuddhaRain = [[255,128,0],[255,217,51],[204,204,82],[143,179,89],[25,43,51]]
+        color_5_dragonfly = [[38,24,34],[64,21,42],[115,22,48],[204,30,44],[225,84,52]]
+    def RGB_HTMLcode(self,RGB_array):
+        '''RGB转换成十六进制表示'''
+        RGB_array = np.array(RGB_array)
+        ndarray,ncols = RGB_array.shape
+        HTML_array = list()
+        for i in range(0,ndarray):
+            HTML_array.append('#%02x%02x%02x' % (RGB_array[i][0],RGB_array[i][1],RGB_array[i][2]))
