@@ -7,14 +7,14 @@ import scipy.io as sci
 from AGCanalyse.Base_analyse import MX,HB,GD,operation_analyse
 import os
 import sys
-sys.path.insert(0, r'D:\pyworkspace\Data_Get') # sys.path.append(path)也可以，只不过查询时是在最后位置，加载包的时候是按顺序查找包的
-# from getAPI import getStaWork
 import pandas as pd
-
+sys.path.insert(0, r'D:\pyworkspace\Data_Get') # sys.path.append(path)也可以，只不过查询时是在最后位置，加载包的时候是按顺序查找包的
+# import getAPI
 
 class Check_data():
     '''
-    检查数据，并且微处理数据
+    :检查数据，并且微处理数据
+    :parm i: 电站序号
     '''
     def __init__(self,i):
         sta_config=pd.read_excel('D:/pyworkspace/Data_Get/assets/sta_cl_ah_config.xlsx')
@@ -28,7 +28,10 @@ class Check_data():
         self.Aim_codes,self.location = self.sta_codes[self.index[i]],self.index_loc[i]
         self.i = i
     
-    def Dataexist(self,start_date,end_date):
+    def _Dataexist(self,start_date,end_date):
+        '''
+        :内部函数：用来判断电站是否存在数据，并返回存在数据的电站和序号
+        '''
         Nodata =[]
         Nodata_loc =[]
         Ysdata =[]
@@ -37,7 +40,7 @@ class Check_data():
             Aim_codes = self.sta_codes[self.index[i]]
             sta_data_date = start_date
             end_data_date = end_date
-            A = getStaWork(sta_data_date,end_data_date,Aim_codes)
+            A = getAPI.getStaWork(sta_data_date,end_data_date,Aim_codes)
             print('开始检查电站：'+self.index_name[i])
             Agc1,Agc2 = A.getEMSexist()
             if Agc1.empty and Agc2.empty:
@@ -132,9 +135,9 @@ class Check_data():
         else:
             sta_data_date = start_date
             end_data_date = end_date
-            a,b,c,d = self.Dataexist(sta_data_date,end_data_date)
+            a,b,c,d = self._Dataexist(sta_data_date,end_data_date)
             if self.i in d:
-                A = getStaWork(sta_data_date,end_data_date,self.Aim_codes)
+                A = getAPI.getStaWork(sta_data_date,end_data_date,self.Aim_codes)
                 bat,df1,df2 = A.getEMSBat()
                 if Jizu == 1:
                     jizu = '01'
@@ -162,7 +165,16 @@ class Check_data():
 
 class deal_data():
     '''
+    :数据分析外部接口
+    :param Aim_names_Chinese:电站中文名简称
+    :param data:分析数据，通常包括AGC数据列，时间列，联合出力列
+    :param location:电站所在区域：华北，蒙西及广东
+    :param Agc:Agc数据列，可用来单独分析
+    :param Pdg:机组数据列，可用来单独分析
+    :param Bat:储能数据列，可用来单独分析
+    :param time:时间类，可不添加，若存在，最好加入
     
+    :return 各项分析结果：kp值，机组出力分析，储能出力分析，AGC指令情况分析，收益分析，成本分析
     '''
     def __init__(self,Aim_names_Chinese,data,location,Agc,Pdg,Bat,time=None):
         self.Chinese_name = Aim_names_Chinese
