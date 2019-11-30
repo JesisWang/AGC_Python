@@ -10,9 +10,9 @@ import math
 
 class operation_analyse:
     '''
-    运行得到AGC相关分析:
-    电站名称：新丰，云河，海丰，河源，鲤鱼江，恒运，宣化，准大，兴和，上都，平朔，同达
-    类下变量说明：
+    :运行得到AGC相关分析:
+    :电站名称：新丰，云河，海丰，河源，鲤鱼江，恒运，宣化，准大，兴和，上都，平朔，同达
+    :类下变量说明：
     Agc:Agc数据
     Pdg:机组功率数据
     Pbat:储能电站功率数据
@@ -130,9 +130,9 @@ class operation_analyse:
 
     def AGCstrength(self,detAgc = 2):
         '''
-        输入参数：
+        :输入参数：
         detAgc : 区分AGC之间的阈值
-        输出参数:
+        :输出参数:
         Result的数据表:(字段含义)
         'Max':max value during the 15 minutes
         'Min':min value during the 15 minutes
@@ -238,13 +238,13 @@ class operation_analyse:
     
     def BATstrength(self,initial_SOC=0,detAgc=2,scanrate=1):
         '''
-        储能电站的强度分析曲线，若没有储能数据，则无法分析
-        包含储能的运行成本分析
-        输入参数:
+        :储能电站的强度分析曲线，若没有储能数据，则无法分析
+        :包含储能的运行成本分析
+        :输入参数:
         initial_SOC:初始SOC
         detAgc:区分AGC的大小
         scanrate:扫描频率
-        输出参数:
+        :输出参数:
         BatResult:
             'Agc':Agc指令
             '正向调节功率':对应指令下的放电功率和
@@ -259,6 +259,39 @@ class operation_analyse:
         Eqv_cycminus:充电等效循环次数
         Eqv_cycplus:放电等效循环次数
         '''
+        Stationname = ['新丰','云河','海丰','河源','鲤鱼江','恒运','宣化','准大','兴和','上都','平朔','同达']
+        Cyc_all =     [5000]*12
+        Cyc_all = dict(zip(Stationname,Cyc_all))
+        Cyc_day =     [  5  ,  8  ,  8  , 8   ,  5   ,  5  ,  5  ,  4  ,  5  ,  8  ,  5  ,  5 ]
+        Cyc_day = dict(zip(Stationname,Cyc_day))
+        use_electricity_rate = [0.15]*12
+        use_electricity_rate = dict(zip(Stationname,use_electricity_rate))
+        efficiency = [0.85]*12
+        efficiency = dict(zip(Stationname,efficiency))
+        soh = [0.80]*12
+        soh = dict(zip(Stationname,soh))
+        soc = [0.85]*12
+        soc = dict(zip(Stationname,soc))
+        EPC = [0,0,57189700,52148596,0,0,55051417,0,21585349,0,0,0]
+        EPC = dict(zip(Stationname,EPC))
+        
+        cyc=Cyc_all[self.stationname]
+        cyc_day=Cyc_day[self.stationname]
+        Capacity=self.BatPe/2
+        use_electricity_day=use_electricity_rate[self.stationname]*cyc_day*Capacity
+        efficiency=efficiency[self.stationname]
+        end_soh=soh[self.stationname]
+        EMS_soc=soc[self.stationname]
+        EPC=EPC[self.stationname]
+        a = cost_perunit(cyc,cyc_day,Capacity,use_electricity_day,efficiency,end_soh,EMS_soc)
+        b = a.Initial_investment_cost(EPC)
+        if b == -1:
+            Cost_unit = 3
+        else:
+            a.Operation_cost()
+            a.Replacement_cost()
+            b = a.Unit_cost()
+        
         BAT = self.df['Pbat']
         Ee = self.BatPe/2
         BatPe = Ee*2
@@ -300,11 +333,28 @@ class operation_analyse:
                     for j in range(ia,i):
                         DOD = DOD - BAT[j]*(indexn[j]-indexn[j+1]).total_seconds()/3600
                 i0,ia = indexn[i],i
-        Cost = max([Eqv_cycplus,-Eqv_cycminus])/5000*0.4*1000*1000*Ee
-        elecFee = (abs(MinusE_Pdg) - PlusE_Pdg)*0.25*1000
+        Cost = Eqv_cycplus*Ee*b
+        elecFee = (abs(MinusE_Pdg) - PlusE_Pdg)*0.35*1000
         return BatResult,Cost,elecFee,Eqv_cycminus,Eqv_cycplus
     
     def BATstrength_ems(self,charge1,charge2,discharge1,discharge2,initial_SOC=0,detAgc=2,scanrate=1):
+        '''
+        :说明:用来对EMS导出数据进行分析,主要是分析储能跟踪情况(现场用),兼顾用来分析从EMS导出的储能调节分析
+        :param charge1:储能系统1的可充电功率
+        :param charge2:储能系统2的可充电功率
+        :param discharge1:储能系统1的可放电功率
+        :param discharge2:储能系统2的可放电功率
+        :param initial_SOC:初始SOC值
+        :param detAgc:AGC指令间的判别条件
+        :param scanrate:扫描频率
+        
+        :return Batresult:电池分析结果（每条指令下的调节总情况)
+        :return Cost:成本
+        :return elecFee:电费
+        :return Eqv_cycminus:等效负循环次数
+        :return Eqc_cycplus:等效整循环次数
+        :return n:储能由于电量限制，累积未跟踪数
+        '''
         BAT = self.df['Pbat']
         PDG = self.Pdg
         Ee = self.BatPe/2
@@ -364,10 +414,10 @@ class operation_analyse:
     
     def PDGstrength(self,detAgc=2,ft_time=10):
         '''
-        输入参数:
+        :输入参数:
         detAgc: 区分AGC的阈值
         ft_time: 反调持续最小时间
-        输出参数:
+        :输出参数:
         Result:有效指令的结果表,字段
             'Agc':AGC
             'Pst':起始时刻Pdg值
@@ -485,9 +535,83 @@ class operation_analyse:
             K = 0
         return Result,Op1,Op2,Op3,Op4,S,M,K
     
+    def agc_static(self,detAgc=2):
+        '''
+        :用于计算指令持续时间的分布
+        :指令缺口的分布(AGC-机组)
+        :每条指令下储能最大输出功率及其时间分布
+        
+        :param detAgc:指令间的判别条件
+        
+        :return data:分析结果数据，存储指令，指令起始时间，指令缺口大小，储能调节中最大出力及其持续时间
+        '''
+        Agc = self.Agc
+        Pdg = self.Pdg
+        Pall = self.Pall
+        Pbat = self.Pbat
+        time = self.time
+        Agc.index = time;Pall.index = time;Pbat.index = time;Pdg.index = time
+        AGC0 = Agc[time[0]]
+        lasti = time[0]
+        if AGC0>Pall[time[0]]:
+            flag = 1
+            Gap = AGC0 - Pdg[time[0]]
+        else:
+            flag = -1
+            Gap = Pdg[time[0]] - AGC0
+        Count = 0
+        Max_Count = 0
+        record_time = time[0]
+        n = 0
+        Max = -self.BatPe
+        Min = self.BatPe
+        data = pd.DataFrame(columns=['指令','指令时间','指令缺口','储能最大出力','最大出力下持续时间'])
+        for i in time:
+            if abs(Agc[i]-AGC0)>detAgc:
+                if flag == 1:
+                    data.iloc[n,:] = [AGC0,record_time,Gap,Max,Max_Count]
+                else:
+                    data.iloc[n,:] = [AGC0,record_time,Gap,Min,Max_Count]
+                AGC0 = Agc[i]
+                n += 1
+                if AGC0>Pall[i]:
+                    flag = 1
+                    Gap = AGC0 - Pdg[i]
+                else:
+                    flag = -1
+                    Gap = Pdg[i] - AGC0
+                Max = -self.BatPe
+                Min = self.BatPe
+                record_time = time[i]
+                Count = 0
+                Max_Count = 0
+            else:
+                if flag == 1:
+                    if Count == 0:
+                        Max = max(Max,Pbat[i])
+                        Count += 1
+                    elif Max-self.BatPe*0.015<=Pbat[i]<=Max+self.BatPe*0.025:
+                        Count += 1+(i-lasti).seconds
+                    elif Pbat[i]>Max+self.BatPe*0.025:
+                        Max = max(Max,Pbat[i])
+                        Count = 1
+                    Max_Count = max(Max_Count,Count)
+                else:
+                    if Count == 0:
+                        Min = min(Min,Pbat[i])
+                        Count += 1
+                    elif Min+self.BatPe*0.015>=Pbat[i]>=Min-self.BatPe*0.025:
+                        Count += 1+(i-lasti).seconds
+                    elif Pbat[i]<Min-self.BatPe*0.025:
+                        Min = min(Min,Pbat[i])
+                        Count = 1
+                    Max_Count = max(Max_Count,Count)
+            lasti = i
+        return data
+        
 class MX(operation_analyse):
     '''
-     计算蒙西的Kp值和收益
+     :计算蒙西的Kp值和收益
      stationname:电站名称，需要给出
      2019-09-19 修正求取的参数
      '''
@@ -725,13 +849,14 @@ class MX(operation_analyse):
 
 class GD(operation_analyse):
     '''
-     计算广东的Kp值和收益
-     stationname:电站名称，需要给出
+     :计算广东的Kp值和收益
+     :2019.11.06 增加对速率的限制条件，>5倍速率判定为异常值
+     :param stationname:电站名称，需要给出
     '''
     def Kp_Revenue(self,ScanR=1,VarAgc=0.005,maxk23=1,maxk1=5,TminCon=20,TminVt=30,TminTa=20,TmaxTa=40,TminTR=4,Yagc=12):
         '''
-        该文档是用来计算广东区电站K-D-Revenue的函数
-        各参数含义如下：
+        :该文档是用来计算广东区电站K-D-Revenue的函数
+        :各参数含义如下：
         AGC:电网下达的AGC功率指令值，功率单位MW，时间间隔1秒
         Pall:联合功率值，功率单位MW，时间间隔为1秒
         RowNum:为计算样本采样点数，时间间隔为1秒，若相邻数据间的间隔不为1秒，请处理源数据，如一天的样本为86400个(秒)
@@ -751,7 +876,7 @@ class GD(operation_analyse):
         TmaxTa:进入死区后，最大测试维持时间，如40s
         TminTR:有效出调节死区最小维持时间，如4s
         Yagc:动态补偿金额
-        参数返回：
+        :参数返回：
         1——k1
         2——k2
         3——k3
@@ -1201,7 +1326,7 @@ class GD(operation_analyse):
         Revenue = sumD*meankp*Yagc
 #         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
         return meank1,meank2,meank3,meankp,sumD,Revenue
-    def Kp_Revenue_2018(self,ScanR=1,VarAgc=0.002,maxk23=1,maxk1=5,TminCon=15,TminVt=30,TminTa=20,TmaxTa=40,TminTR=4,Yagc=12):
+    def Kp_Revenue_2018(self,ScanR=1,VarAgc=0.002,maxk23=1,maxk1=5,TminCon=15,TminTa=20,TmaxTa=40,TminTR=4,Yagc=12):
         '''
         该文档是用来计算广东区电站K-D-Revenue的函数
         各参数含义如下：
@@ -1559,7 +1684,7 @@ class GD(operation_analyse):
         Revenue = sumD*meankp*Yagc
 #         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
         return meank1,meank2,meank3,meankp,sumD,Revenue
-    def Contribution(self,ScanR=1,VarAgc=0.005,maxk23=1,maxk1=5,TminCon=20,TminVt=30,TminTa=20,TmaxTa=40,TminTR=4,Yagc=12):
+    def Contribution(self,ScanR=1,VarAgc=0.005,maxk23=1,maxk1=5,TminTa=20,TmaxTa=40,TminTR=4,Yagc=12):
         '''
         该文档是用来计算广东区电站储能出力对完成指令的贡献分析
         各参数含义如下：
@@ -2274,7 +2399,7 @@ class cost_perunit():
     :param cyc:预计循环总数
     :param cyc_day:日预计循环数
     :param Capacity:配置容量(MWh)
-    :param ues_electricity_day:日用电量(MWh)
+    :param ues_electricity_day:日用电量(MWh,理论估值)
     :param efficiency:充放电转换效率(小数形式)
     :param end_soh:电池报废截止SOH(小数形式)
     :param EMS_soc:EMS控制运行soc行程(小数形式)
@@ -2334,20 +2459,23 @@ class cost_perunit():
                 self.Battery_all = cooling+control+PCS+pack+module+container
                 self.initial_investment_cost = self.initial_investment_cost+cooling+control+PCS+pack+module+container
                 print('投资资金为:%d' %self.initial_investment_cost)
+                if self.initial_investment_cost == 0:
+                    print('投资资金未知，无法计算')
+                    return -1
                 return 
     def Operation_cost(self,All=0,maintain=0,insurance=0,use_electricity=0,charge_cost=0,auxiliary=0,management=0,monitoring=0,recycl=0):
         """
         : 运行成本核算,使用期限内的全部运行成本
         : 用电成本包含充电成本和辅助用电成本
         
-        :param All:全部运行成本
-        :param maintain:运行维护成本
-        :param insurance:保险
-        :param use_electricity:用电成本
-        :param charge_cost:充电成本
-        :param auxiliary:辅助用电成本
-        :param management:管理成本
-        :param monitoring:监控成本
+        :param All:全部运行成本,可不配其他成本
+        :param maintain:运行维护成本/元
+        :param insurance:保险/元
+        :param use_electricity:用电成本/元
+        :param charge_cost:充电成本/元
+        :param auxiliary:辅助用电成本/元
+        :param management:管理成本/元
+        :param monitoring:监控成本/元
         :param recycl:回收成本(一次成本)
         
         :return operation_cost:运行成本
@@ -2361,12 +2489,13 @@ class cost_perunit():
                 # 如果没给运行维护成本，则根据百分比计算
                 maintain = self.initial_investment_cost*0.002*self.year
             if insurance ==0:
-                N = input('请选择是否有保险，有Y，没有N')
+#                 N = input('请选择是否有保险，有Y，没有N')
+                N = 'Y'
                 if 'Y' in N:
                     insurance = self.initial_investment_cost*0.015*self.year
                 else:
                     insurance = 0
-            self.operation_cost = self.operation_cost+maintain+insurance
+            self.operation_cost = maintain+insurance
             
             if management == 0:
                 management = self.initial_investment_cost*0.0015*self.year
@@ -2406,4 +2535,46 @@ class cost_perunit():
         self.per_operat_cost_year = self.operation_cost/self.Capacity/self.year
         self.unit_cost = (self.per_init_cost+self.per_operat_cost_year*self.year)/(self.cyc*self.efficiency*self.DOD_average*self.EMS_soc)
         print('每MWh的放电成本:%.2f' % self.unit_cost)
+        return self.unit_cost
+
+class Heat_analyse():
+    
+    def __init__(self):
         return
+
+    def Heat_distribution(self,Current,Current_Max,rating,time=None,Threshold_rate=0.8):
+        '''
+        :该函数用来求取热相关分析
+        :本部分主要统计连续最大功率输出的时长分布
+        :param Current:电流数据
+        :param time:对应时间
+        :param Current_Max:最大电流,若为站电流:给出站最大电流;若为堆电流:给出堆最大电流;若为包电流:给出包最大电流;其他类比
+        :param rating:等级,若为站:则是1;若为箱:则是2;若为堆:则为3;若为簇:则是4;若为包:则是5;
+        :param threshold:认定电流阈值(小数),超过该值则认为是满功率
+        
+        :return data:电流分布统计数据
+        '''
+        if time is not None:
+            time = pd.to_datetime(time,format ='%Y-%m-%d %H:%M:%S')
+        else:
+            time = pd.date_range(start='00:00:00',periods=len(Current),freq='1S')
+        rating_map = {'1':'站','2':'箱','3':'堆','4':'簇','5':'包'}
+        print('--------------选择对%s进行分析------------' %rating_map[str(rating)])
+        Current.index = time
+        Threshold = Current_Max*Threshold_rate
+        print('认为超过%.2fA的电流即为满功率输出,对该阈值进行分析' %Threshold)
+        count = -1
+        Reset = 0
+        data = pd.DataFrame(columns=['起始时间','结束时间','时长'])
+        for i in time:
+            if abs(Current[i])>Threshold:
+                if Reset == 0 :
+                    i_start = i
+                    count += 1
+                    Reset = 1
+            else:
+                if Reset != 0:
+                    i_end = i
+                    Reset = 0
+                    data.loc[count,:] = [i_start,i_end,(i_end-i_start).seconds]
+        return data
