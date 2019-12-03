@@ -2201,7 +2201,7 @@ class GD(operation_analyse):
         flag = [1,0]
         flag[1] = Agc-Pall[0]
         Psd = max(0.01*Prate,5)
-        Psst = Pt0+Psd+0.05
+        Psst = Pt0+Psd
         k1set,k2set,k3set = -1,-1,-1
         CountT = 0
         Pt1_temp,T1_temp = 0,0
