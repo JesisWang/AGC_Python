@@ -617,8 +617,8 @@ class MX(operation_analyse):
      '''
     def Kp_Revenue(self,ScanR=5,ADJK1=2.1,minT=30,maxV=5,VarAgc=2,VarPdg=0.01,K1max=4.2,Back=0.02,mink=0.1,maxk=2):
         '''
-        该文档是用来计算蒙西电网K-D-Revenue的函数
-        各参数含义如下：
+        :该文档是用来计算蒙西电网K-D-Revenue的函数
+        :各参数含义如下：
         AGC:电网下达的AGC功率指令值，功率单位MW，时间间隔1秒
         Pall:联合功率值，功率单位MW，时间间隔为1秒
         RowNum:为计算样本采样点数，时间间隔为1秒，若相邻数据间的间隔不为1秒，请处理源数据，如一天的样本为86400个(秒)
@@ -1328,8 +1328,8 @@ class GD(operation_analyse):
         return meank1,meank2,meank3,meankp,sumD,Revenue
     def Kp_Revenue_2018(self,ScanR=1,VarAgc=0.002,maxk23=1,maxk1=5,TminCon=15,TminTa=20,TmaxTa=40,TminTR=4,Yagc=12):
         '''
-        该文档是用来计算广东区电站K-D-Revenue的函数
-        各参数含义如下：
+        :该文档是用来计算广东区电站K-D-Revenue的函数
+        :各参数含义如下：
         AGC:电网下达的AGC功率指令值，功率单位MW，时间间隔1秒
         Pall:联合功率值，功率单位MW，时间间隔为1秒
         RowNum:为计算样本采样点数，时间间隔为1秒，若相邻数据间的间隔不为1秒，请处理源数据，如一天的样本为86400个(秒)
@@ -2161,8 +2161,6 @@ class GD(operation_analyse):
         4——Kp
         5——里程D
         6——收益Revenue
-        
-        changshi
         '''
         AGC = self.Agc
         AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
@@ -2609,14 +2607,14 @@ class GD(operation_analyse):
         
 class HB(operation_analyse):
     '''
-     计算华北的Kp值和收益
+     :计算华北的Kp值和收益
      stationname:电站名称，需要给出
     '''
     def Kp_Revenue(self,ScanR=5,VarAgc=5,Back=0.02,mink=0.1,maxk=2,Yagc=5):
 
         '''
-        该文档是用来计算华北区电站K-D-Revenue的函数
-        各参数含义如下：
+        :该文档是用来计算华北区电站K-D-Revenue的函数
+        :各参数含义如下：
         AGC:电网下达的AGC功率指令值，功率单位MW，时间间隔1秒
         Pall:联合功率值，功率单位MW，时间间隔为1秒
         RowNum:为计算样本采样点数，时间间隔为1秒，若相邻数据间的间隔不为1秒，请处理源数据，如一天的样本为86400个(秒)
@@ -3030,7 +3028,6 @@ class Heat_analyse():
         :param threshold:认定电流阈值(小数),超过该值则认为是满功率
         
         :return data:电流分布统计数据
-        :注意:本函数无法对
         '''
         if time is not None:
             time = pd.to_datetime(time,format ='%Y-%m-%d %H:%M:%S')
