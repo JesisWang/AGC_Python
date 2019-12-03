@@ -2161,6 +2161,8 @@ class GD(operation_analyse):
         4——Kp
         5——里程D
         6——收益Revenue
+        
+        changshi
         '''
         AGC = self.Agc
         AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
@@ -2201,7 +2203,7 @@ class GD(operation_analyse):
         flag = [1,0]
         flag[1] = Agc-Pall[0]
         Psd = max(0.01*Prate,5)
-        Psst = Pt0+Psd
+        Psst = Pt0+Psd+0.5
         k1set,k2set,k3set = -1,-1,-1
         CountT = 0
         Pt1_temp,T1_temp = 0,0
