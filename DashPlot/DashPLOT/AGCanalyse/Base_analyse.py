@@ -533,6 +533,7 @@ class operation_analyse:
             K = S/M*100
         else:
             K = 0
+        print('反:%.2f\n不动:%.2f\n缓慢:%.2f\n瞬间:%.2f\n非正常调节总次数:%.2f' %(Op1,Op2,Op3,Op4,M))
         return Result,Op1,Op2,Op3,Op4,S,M,K
     
     def agc_static(self,detAgc=2):
@@ -928,6 +929,7 @@ class GD(operation_analyse):
         CountT = 0
         Pt1_temp,T1_temp = 0,0
         V_all = []
+        k1_all = []
         Pss = max(Prate*0.01,10)
         for i in AGC.index:
             if not np.isnan(AGC[i]) and not np.isnan(Pall[i]):
@@ -980,6 +982,14 @@ class GD(operation_analyse):
                                             else:
                                                 V1.append(abs((Pvend-Pvst)/Tv)*60)
                                             V_all.append(abs((Pvend-Pvst)/Tv)*60)
+                                            k1_all.append(min(abs((Pvend-Pvst)/Tv)*60/Vn,5))
+                                        else:
+                                            if len(V1) == 1 and V1[0] == 0 :
+                                                V1 = [5*Vn]
+                                            else:
+                                                V1.append(5*Vn)
+                                            V_all.append(5*Vn)
+                                            k1_all.append(5)
                                     else:
                                         if len(V1) == 1 and V1[0] == 0:
                                             V1 = [k1set]
@@ -1040,6 +1050,12 @@ class GD(operation_analyse):
                                                 Vj = V1 = abs((Pvend-Pvst)/Tv)*60
                                                 V_all.append(V1)
                                                 k1 = min(maxk1,Vj/Vn)
+                                                k1_all.append(k1)
+                                            else:
+                                                Vj = V1 = 5*Vn
+                                                V_all.append(V1)
+                                                k1 = min(maxk1,Vj/Vn)
+                                                k1_all.append(k1)
                                         else:
                                             Vj = k1set
                                 else:
@@ -1064,7 +1080,16 @@ class GD(operation_analyse):
                                                 else:
                                                     V1.append(Vj)
                                                     Vj = np.mean(V1)
+                                            else:
+                                                Vj = 5*Vn
+                                                V_all.append(Vj)
+                                                if len(V1) == 0:
+                                                    V1 = Vj
+                                                else:
+                                                    V1.append(Vj)
+                                                    Vj = np.mean(V1)
                                             k1 = min(maxk1,Vj/Vn)
+                                            k1_all.append(k1)
                                         else:
                                             if len(V1) == 0:
                                                 V1 = k1set
@@ -1223,6 +1248,12 @@ class GD(operation_analyse):
                                         Vj = V1 = abs((Pvend-Pvst)/Tv)*60
                                         V_all.append(Vj)
                                         k1 = min(maxk1,Vj/Vn)
+                                        k1_all.append(k1)
+                                    else:
+                                        Vj = V1 = 5*Vn
+                                        V_all.append(Vj)
+                                        k1 = min(maxk1,Vj/Vn)
+                                        k1_all.append(k1)
                                 else:
                                     Vj = k1set
                         else:
@@ -1247,14 +1278,22 @@ class GD(operation_analyse):
                                         else:
                                             V1.append(Vj)
                                             Vj = np.mean(V1)
+                                    else:
+                                        Vj = 5*Vn
+                                        V_all.append(Vj)
+                                        if len(V1) == 0:
+                                            V1 = Vj
+                                        else:
+                                            V1.append(Vj)
+                                            Vj = np.mean(V1)
                                     k1 = min(maxk1,Vj/Vn)
+                                    k1_all.append(k1)
                                 else:
                                     if len(V1) == 0:
                                         V1 = k1set
                                     else:
                                         Vj = np.mean(V1)
                                         k1 = min(maxk1,Vj/Vn)
-#                         print(V1)
                         if T>TminTa:
                             '''进入调节死区必须维持20s以上才可计算'''
                             '''计算k3，若没有，则置为0'''
@@ -2201,7 +2240,7 @@ class GD(operation_analyse):
         flag = [1,0]
         flag[1] = Agc-Pall[0]
         Psd = max(0.01*Prate,5)
-        Psst = Pt0+Psd+0.5
+        Psst = Pt0+Psd
         k1set,k2set,k3set = -1,-1,-1
         CountT = 0
         Pt1_temp,T1_temp = 0,0
