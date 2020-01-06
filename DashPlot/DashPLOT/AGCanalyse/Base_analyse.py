@@ -61,7 +61,7 @@ class operation_analyse:
         Stationname = ['新丰','云河','海丰','河源','鲤鱼江','恒运','宣化','准大','兴和','上都','平朔','同达']
         Area =        ['蒙西','广东','广东','广东','广东' ,'广东','华北','蒙西','蒙西','华北','华北','华北']
         AREA = dict(zip(Stationname,Area))
-        Pe = [300,330,1000,600,300,300,330,300,300,600,300,300] # 机组额定功率
+        Pe = [300,330,1050,600,300,300,330,300,300,600,300,300] # 机组额定功率
         Pe = dict(zip(Stationname,Pe))
         self.Pe = Pe[stationname]
         BatPe = [9,9,30,18,12,15,9,9,9,18,9,9] # 电池的额定功率，固定值，写死
@@ -846,12 +846,13 @@ class MX(operation_analyse):
         sumD = Result1.D.sum()
         Revenue = meankp*sumD*0.02*0.35*1000
 #         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
-        return meank1,meank2,meank3,meankp,sumD,Revenue
+        return meank1,meank2,meank3,meankp,sumD,Revenue,Result
 
 class GD(operation_analyse):
     '''
      :计算广东的Kp值和收益
      :2019.11.06 增加对速率的限制条件，>5倍速率判定为异常值
+     :2019.12.05 增加k1_all参数，保留所有有效k1的参数，将>5倍速率判定为异常值时不再舍掉该值 ，而是将该值固定为5倍速率(与原来无差别)，可以采用注释代码进行切换
      :param stationname:电站名称，需要给出
     '''
     def Kp_Revenue(self,ScanR=1,VarAgc=0.005,maxk23=1,maxk1=5,TminCon=20,TminVt=30,TminTa=20,TmaxTa=40,TminTR=4,Yagc=12):
@@ -975,7 +976,7 @@ class GD(operation_analyse):
                                 if Tvend == 0:
                                     Pvst,Tvst,Pvend,Tvend = 0,0,0,0
                                 else:
-                                    if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR:
+                                    if abs(Pvend-Pvst) >=DeadZone2 and Tv>TminTR :
                                         if abs((Pvend-Pvst)/Tv)*60<5*Vn:
                                             if len(V1) == 1 and V1[0] == 0 :
                                                 V1 = [abs((Pvend-Pvst)/Tv)*60]
@@ -1323,36 +1324,6 @@ class GD(operation_analyse):
                         '''保存结果'''
 #                         Result.loc[ControlNo] = np.array([Agc,Pt0,T0,Pt1,T1,Pt2,T2,Pt3,T3,Tj,Vj,detP,k1,k2,k3,kp,Pend,D,flag[0],Pmax,Pvst,Tvst,Pvend,Tvend,Validity,Revenue])
                     lasti = i
-    #     for j in np.arange(len(Result)):
-    #         if Result.loc[j,Vj]>-1:
-    #             K1 = K1+Result.loc[j,Vj]
-    #             K1Count = K1Count+1
-    #         if Result.loc[j,Tj]>-1:
-    #             K2 = K2+Result.loc[j,Tj]
-    #             K2Count = K2Count+1
-    #         if Result.loc[j,detP]>-1:
-    #             K3 = K3+Result.loc[j,detP]
-    #             K3Count = K3Count+1
-#         K1 = Result.Vj[(Result.Vj>-1)].sum()
-#         K1Count = len(Result.Vj[(Result.Vj>-1)])
-#         K2 = Result.Tj[(Result.Tj>-1)].sum()
-#         K2Count = len(Result.Tj[(Result.Tj>-1)])
-#         K3 = Result.detP[(Result.detP>-1)].sum()
-#         K3Count = len(Result.detP[(Result.detP>-1)])
-#         if K1Count == 0:
-#             K1Count = 1
-#         if K2Count == 0:
-#             K2Count = 1
-#         if K3Count == 0:
-#             K3Count = 1
-#         
-#         meank1 = min(5,(K1/K1Count)/Vn)
-#         meank2 = 1-(K2/K2Count)/tn
-#         meank3 = 1-(K3/K3Count)/detPn
-#         meankp = 0.5*meank1+0.25*meank2+0.25*meank3
-#         sumD = Result.D.sum()
-#         Revenue = sumD*meankp*Yagc
-        
     #     lisrindex = Result[(Result.Validity>0) & (Result.k1>0)].index.tolist()#返回行的名称
     #     Result1 = Result[(Result.Validity>0)]
     #     Result2 = Result1[(Result1.k1>0)]
@@ -1364,7 +1335,7 @@ class GD(operation_analyse):
         print('k1:%.2f \n k2:%.2f \n k3:%.2f \n kp:%.2f \n D:%.2f' %(meank1,meank2,meank3,meankp,sumD))
         Revenue = sumD*meankp*Yagc
 #         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
-        return meank1,meank2,meank3,meankp,sumD,Revenue
+        return meank1,meank2,meank3,meankp,sumD,Revenue,Result
     def Kp_Revenue_2018(self,ScanR=1,VarAgc=0.002,maxk23=1,maxk1=5,TminCon=15,TminTa=20,TmaxTa=40,TminTR=4,Yagc=12):
         '''
         :该文档是用来计算广东区电站K-D-Revenue的函数
@@ -1720,6 +1691,7 @@ class GD(operation_analyse):
         meank3 = Result.k3[(Result.k3>0)].mean()
         meankp = 0.5*meank1+0.25*meank2+0.25*meank3
         sumD = Result.D.sum()
+        print('k1:%.2f \n k2:%.2f \n k3:%.2f \n kp:%.2f \n D:%.2f' %(meank1,meank2,meank3,meankp,sumD))
         Revenue = sumD*meankp*Yagc
 #         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
         return meank1,meank2,meank3,meankp,sumD,Revenue
@@ -2901,7 +2873,7 @@ class HB(operation_analyse):
         print('k1:%.2f \n k2:%.2f \n k3:%.2f \n kp:%.2f \n D:%.2f' %(meank1,meank2,meank3,meankp,sumD))
         Revenue = sumD*(math.log(meankp)+1)*Yagc
 #         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
-        return meank1,meank2,meank3,meankp,sumD,Revenue
+        return meank1,meank2,meank3,meankp,sumD,Revenue,Result
 
 class cost_perunit():
     """
