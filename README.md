@@ -6,5 +6,5 @@
 2. **AGCanalyse_Main**是自动化运行文件，兼顾画图程序，主要调用webservice接口和编撰的函数
 3. **FIGUREplot**是画图程序，内置两种画图方式：
 > plotly方式，为了便于快速画图，减少重复性工作而设置的面向对象画图，将画图程序转变为更少的业务数据即可；[pyecharts](http://pyecharts.org/#/)是百度开发[echarts](https://echarts.apache.org/zh/index.html)兼容Python的画图程序。此两种程序均可以进行新的定制化函数。
-4. **AGCanalyse**中放置了主要的分析函数：详情可参见内置Readme
+4. **AGCanalyse**中放置了主要的分析函数：详情可参见内置Readme  
 谢谢阅读
