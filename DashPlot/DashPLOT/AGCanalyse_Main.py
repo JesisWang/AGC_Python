@@ -21,6 +21,7 @@ import time
 import datetime
 import lxml
 from functools import wraps
+from win32com import client
 '''
     文件取数接C:取文件的时候index是不含有时间的
     path = 'C:/Users/JesisW/Desktop/XFdata.mat'
@@ -164,16 +165,8 @@ def report_operation(Result_data,picpath,Aim_names_Chinese,sta_data_date):
                      'reportdate':str_datetoday,'reportpeople':'王宝源','briefing':''}
     toc_table = {}
     main_content = {'station':Aim_names_Chinese,'number':'2'}
-    main_content_kp = {'date1':'',
-                         'date2':'',
-                         'date3':'',
-                         'date4':'',
-                         'date5':''}
-    main_content_CR = {'date6':'',
-                         'date7':'',
-                         'date8':'',
-                         'date9':'',
-                         'datex':''}
+    main_content_kp = {'date1':'','date2':'','date3':'','date4':'','date5':''}
+    main_content_CR = {'date6':'','date7':'','date8':'','date9':'','datex':''}
     main_content_pic_k = {'pic1':'','pic2':'','pic3':'','pic4':''}
     main_content_pic_CB = {'pic5':'','pic6':'','pic7':'','pic8':''}
     main_content_conclusion = {'conclusion1':'','conclusion2':''}
@@ -209,14 +202,10 @@ def report_operation(Result_data,picpath,Aim_names_Chinese,sta_data_date):
     main_content_conclusion['conclusion1'] = '近5日内，kp最大值为%.2f，' %kpmax +word1
     main_content_conclusion['conclusion2'] = '近5日内，最大收益为%.2f元，最大收益率为%.2f' %(Revenuemax,Revenuemaxrate)
     pic_name = ['K1.png','K2.png','K3.png','Kp.png','收益图.png','成本图.png','收益成本图.png','电费图.png']
-    main_content_pic_k['pic1']=picpath+'\\'+pic_name[0]
-    main_content_pic_k['pic2']=picpath+'\\'+pic_name[1]
-    main_content_pic_k['pic3']=picpath+'\\'+pic_name[2]
-    main_content_pic_k['pic4']=picpath+'\\'+pic_name[3]
-    main_content_pic_CB['pic5']=picpath+'\\'+pic_name[4]
-    main_content_pic_CB['pic6']=picpath+'\\'+pic_name[5]
-    main_content_pic_CB['pic7']=picpath+'\\'+pic_name[6]
-    main_content_pic_CB['pic8']=picpath+'\\'+pic_name[7]
+    i = 0
+    for key in main_content_pic_k:
+        main_content_pic_k[key]=picpath+'\\'+pic_name[i]
+        i += 1
     toc_sheet['briefing'] = '本日仿真k1为%.2f，k2为%.2f，k3为%.2f，kp为%.2f\n' %(k1,k2,k3,kp)+\
     main_content_conclusion['conclusion1']+'\n'+main_content_conclusion['conclusion2']
     for old,new in headers.items():
@@ -248,7 +237,10 @@ def report_operation(Result_data,picpath,Aim_names_Chinese,sta_data_date):
     
     toc_updates(document)
     
-    document.save('E:\\1伪D盘\\报告文档\\运营报告\\'+Aim_names_Chinese+'\\运营报告'+sta_data_date[0:10]+Aim_names_Chinese+'.docx')
+    word_name = 'E:\\1伪D盘\\报告文档\\运营报告\\'+Aim_names_Chinese+'\\运营报告'+sta_data_date[0:10]+Aim_names_Chinese+'.docx'
+    pdf_name = 'E:\\1伪D盘\\报告文档\\运营报告\\'+Aim_names_Chinese+'\\运营报告'+sta_data_date[0:10]+Aim_names_Chinese+'.pdf'
+    document.save(word_name)
+    word2pdf(word_name, pdf_name)
     return 
 
 def report_running(Result_data,Agcresult,Batresult,pic_path,Aim_names_Chinese,sta_data_date,Jizu):
@@ -285,11 +277,7 @@ def report_running(Result_data,Agcresult,Batresult,pic_path,Aim_names_Chinese,st
     toc_table = {}
     main_content = {'Vb':str(Vn),'Vc':str(Vntwo),'konemax':str(konemax)}
     main_content_pic = {'pic1':'','pic2':'','pic3':'','pic4':'','pic5':'','pic6':'','pic7':''}
-    main_content_cyc = {'date1':'',
-                        'date2':'',
-                        'date3':'',
-                        'date4':'',
-                        'date5':''}
+    main_content_cyc = {'date1':'','date2':'','date3':'','date4':'','date5':''}
     main_content_conclusion = {'conclusion1':'','conclusion2':'','conclusion3':'','conclusion4':''}
     Con1_choose = '本日AGC指令分析发现， AGC指令调节主要以%s调节为主，AGC指令调节程度%s，调节速率%s，平均调节时间%s，折返调节%s。'
     Con2_choose = '对于储能的运行分析部主要以放电深度和等效放电时长作为手段进行分析，通过分析发现，本日储能%s响应AGC指令(不排除数据源存在异常)，单次最大充电%.2f%%，单次最大放电为%.2f%%。'
@@ -403,8 +391,22 @@ def report_running(Result_data,Agcresult,Batresult,pic_path,Aim_names_Chinese,st
     
     toc_updates(document)
     
-    document.save('E:\\1伪D盘\\报告文档\\运行报告\\'+Aim_names_Chinese+'\\运行报告'+sta_data_date[0:10]+Aim_names_Chinese+'.docx')
+    word_name = 'E:\\1伪D盘\\报告文档\\运行报告\\'+Aim_names_Chinese+'\\运行报告'+sta_data_date[0:10]+Aim_names_Chinese+'.docx'
+    pdf_name = 'E:\\1伪D盘\\报告文档\\运行报告\\'+Aim_names_Chinese+'\\运行报告'+sta_data_date[0:10]+Aim_names_Chinese+'.pdf'
+    document.save(word_name)
+    word2pdf(word_name, pdf_name)
     return
+
+def word2pdf(word_name,pdf_name):
+    try:
+        word = client.DispatchEx('Word Application')
+        worddoc = word.Documents.Open(word_name,ReadOnly = 1)
+        worddoc.SaveAs(pdf_name,FileFormat = 17)
+        worddoc.close()
+        return 
+    except:
+        print('打印失败')
+        return 
 
 if __name__ == '__main__':
     sta_config=pd.read_excel('D:/pyworkspace/Data_Get/assets/sta_cl_ah_config.xlsx')
