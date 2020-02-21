@@ -1,6 +1,7 @@
 '''
 Created on 2019年8月7日
-
+需要依赖较多的包：
+pandas/numpy/matplotlib/docx/win32com是需要自行下载
 @author: JesisW
 '''
 import scipy.io as sci
@@ -23,13 +24,13 @@ import lxml
 from functools import wraps
 from win32com import client
 '''
-    文件取数接C:取文件的时候index是不含有时间的
+    文件取数:取文件的时候，df的index是不含有时间的
     path = 'C:/Users/JesisW/Desktop/XFdata.mat'
     data = sci.loadmat(path)
     M = data['XFdata']
     val = M[0,0]
     df = pd.DataFrame(val['data1203'],columns = ['Agc','Pdg','Pall'])
-    接口取数接C:取接口的时候，index是含有时间的
+    接口取数:取接口的时候，df的index是含有时间的
     sta_data_date = '2019-05-16 00:00:00'
     end_data_date = '2019-05-16 22:00:00'
     sta_config=pd.read_excel('D:/pyworkspace/Data_Get/assets/sta_cl_ah_config.xlsx')
@@ -78,68 +79,83 @@ def main_content_text_update(doc,old,new,style=None):
     """其中替换的文字必须为同一组run，否则刚好在不同组run中将无法识别"""
     """在不同组run中极可能是由于各种样式、格式或中英文字体导致的"""
     """遇到上述情况，要么更改保持一致，要么采用段落文字更改"""
-    for para in doc.paragraphs:
-        for run in para.runs:
-            if old in run.text:
-                style = para.style
-                run.text = run.text.replace(old,new)
-                para.style = style
-                if style is not None:
-                    para.style = style
-
-@logit(logfile='C:\\Users\\JesisW\\Desktop\\log.txt')
-def tabel_text_update(doc,old,new,p=True,k=5):
-    if p:
-        '单纯进行表格内容替换'
-        for tbl in doc.tables:
-            for cell in tbl._cells:
-                for para in cell.paragraphs:
-                    for run in para.runs:
-                        if old in run.text:
-                            style = para.style
-                            run.text = run.text.replace(old,new)
-                            para.style = style
-    else:
-        '数据表格替换'
-        m=k
-        for tbl in doc.tables:
-            for cell in tbl._cells:
-                for para in cell.paragraphs:
-                    for run in para.runs:
-                        if m>k-2:
-                            if old in run.text:
-                                m = 0
-                                style = para.style
-                                run.text = run.text.replace(old,new[m])
-                                para.style = style
-                                
-                        else:
-                            m += 1
-                            style = para.style
-                            run.text = str(new[m])
-                            para.style = style
-
-@logit(logfile='C:\\Users\\JesisW\\Desktop\\log.txt')
-def pic_update(doc,old,pic_path):
-    """图片插入，必须在此行段落进行插入，doc.add_picture是加在文末"""
-    for para in doc.paragraphs:
-        for run in para.runs:
-            if old in run.text:
-                style = para.style
-                run.text = run.text.replace(old,'')
-                pic = para.add_run().add_picture(pic_path,width=Inches(5))
-                para.style = style
-
-@logit(logfile='C:\\Users\\JesisW\\Desktop\\log.txt')
-def header_update(doc,old,new):
-    """对页眉页脚进行更改，在section部分"""
-    for section in doc.sections:
-        for para in section.header.paragraphs:
+    try:
+        for para in doc.paragraphs:
             for run in para.runs:
                 if old in run.text:
                     style = para.style
                     run.text = run.text.replace(old,new)
                     para.style = style
+                    if style is not None:
+                        para.style = style
+    except :
+        print(old,new)
+        return
+
+@logit(logfile='C:\\Users\\JesisW\\Desktop\\log.txt')
+def tabel_text_update(doc,old,new,p=True,k=5):
+    try:
+        if p:
+            '单纯进行表格内容替换'
+            for tbl in doc.tables:
+                for cell in tbl._cells:
+                    for para in cell.paragraphs:
+                        for run in para.runs:
+                            if old in run.text:
+                                style = para.style
+                                run.text = run.text.replace(old,new)
+                                para.style = style
+        else:
+            '数据表格替换'
+            m=k
+            for tbl in doc.tables:
+                for cell in tbl._cells:
+                    for para in cell.paragraphs:
+                        for run in para.runs:
+                            if m>k-2:
+                                if old in run.text:
+                                    m = 0
+                                    style = para.style
+                                    run.text = run.text.replace(old,new[m])
+                                    para.style = style
+                            else:
+                                m += 1
+                                style = para.style
+                                run.text = str(new[m])
+                                para.style = style
+    except:
+        print(old,new)
+        return
+
+@logit(logfile='C:\\Users\\JesisW\\Desktop\\log.txt')
+def pic_update(doc,old,pic_path):
+    """图片插入，必须在此行段落进行插入，doc.add_picture是加在文末"""
+    try:
+        for para in doc.paragraphs:
+            for run in para.runs:
+                if old in run.text:
+                    style = para.style
+                    run.text = run.text.replace(old,'')
+                    pic = para.add_run().add_picture(pic_path,width=Inches(5))
+                    para.style = style
+    except:
+        print(old,pic_path)
+        return
+
+@logit(logfile='C:\\Users\\JesisW\\Desktop\\log.txt')
+def header_update(doc,old,new):
+    """对页眉页脚进行更改，在section部分"""
+    try:
+        for section in doc.sections:
+            for para in section.header.paragraphs:
+                for run in para.runs:
+                    if old in run.text:
+                        style = para.style
+                        run.text = run.text.replace(old,new)
+                        para.style = style
+    except:
+        print(old,new)
+        return 
 
 @logit(logfile='C:\\Users\\JesisW\\Desktop\\log.txt')
 def toc_updates(doc):
@@ -205,6 +221,10 @@ def report_operation(Result_data,picpath,Aim_names_Chinese,sta_data_date):
     i = 0
     for key in main_content_pic_k:
         main_content_pic_k[key]=picpath+'\\'+pic_name[i]
+        i += 1
+    i = 0
+    for key in main_content_pic_CB:
+        main_content_pic_CB[key]=picpath+'\\'+pic_name[i+4]
         i += 1
     toc_sheet['briefing'] = '本日仿真k1为%.2f，k2为%.2f，k3为%.2f，kp为%.2f\n' %(k1,k2,k3,kp)+\
     main_content_conclusion['conclusion1']+'\n'+main_content_conclusion['conclusion2']
@@ -411,9 +431,9 @@ def word2pdf(word_name,pdf_name):
 if __name__ == '__main__':
     sta_config=pd.read_excel('D:/pyworkspace/Data_Get/assets/sta_cl_ah_config.xlsx')
     index =      [  0,    1,    2,   5,    6,    7,   14,   15,   16,  33,  4]  #调频电站序号
-    sta_data_date = '2019-12-16 00:00:00'
-    end_data_date = '2019-12-17 00:00:00'
-    dianzhan      =        3
+    sta_data_date = '2019-10-26 00:00:00'
+    end_data_date = '2019-10-27 00:00:00'
+    dianzhan      =        5
     jizu = input('请输入机组：')
     jizu = int(jizu)
     if jizu == 1:
@@ -442,10 +462,10 @@ if __name__ == '__main__':
 #     Agc = Agc[Jizu+'AGC']
 
 #     人工操作
-    Aim_names_Chinese = '海丰'
-    index_loc = 'GD'
-    a = pd.read_csv(r'E:\1伪D盘\AGC运行\广东华润海丰电厂储能电站\数据\储能Data2019-12-16-2.csv',index_col = 0,header = 0,encoding='gbk')
-    b = pd.read_csv(r'E:\1伪D盘\AGC运行\广东华润海丰电厂储能电站\数据\AGCData2019-12-16-2.csv',index_col = 0,header = 0,encoding='gbk')
+    Aim_names_Chinese = '宣化'
+    index_loc = 'HB'
+    a = pd.read_csv(r'E:\1伪D盘\AGC运行\河北宣化电厂储能电站\数据\储能Data2019-10-26-2.csv',index_col = 0,header = 0,encoding='gbk')
+    b = pd.read_csv(r'E:\1伪D盘\AGC运行\河北宣化电厂储能电站\数据\AGCData2019-10-26-2.csv',index_col = 0,header = 0,encoding='gbk')
     df = pd.merge(a,b,left_index=True,right_index=True,how='inner')
     data = pd.DataFrame(columns=['Agc','Pdg','Pall','Pbat'])
     data['Agc'],data['Pdg'],data['Pbat'] = df[Jizu+'AGC'],df[Jizu+'机组出力'],df['01储能']+df['02储能']
@@ -456,7 +476,7 @@ if __name__ == '__main__':
     time = pd.to_datetime(df.index,format='%Y-%m-%d %H:%M:%S')
     time.columns = ['time']
     Aim_names = sta_config['name'][index[dianzhan]]
-
+    print(Aim_names)
 #     df = pd.read_csv(r'D:\华润海丰\Data\海丰项目26-29日AGC指令数据\29号.csv',encoding ='gbk',index_col=0,header=0)
 #     df.index = df['Date']
 #     time = pd.to_datetime(df['Date'],format='%Y/%m/%d %H:%M:%S')
@@ -499,16 +519,13 @@ if __name__ == '__main__':
     Result.to_csv(path+'\\'+Aim_names+'\\AGC'+'\\'+sta_data_date[0:10]+Aim_names_Chinese+'-'+str(jizu)+'.csv',index=True,header=True,encoding='gbk')
     Result1.to_csv(path+'\\'+Aim_names+'\\机组'+'\\'+sta_data_date[0:10]+Aim_names_Chinese+'-'+str(jizu)+'.csv',index=True,header=True,encoding='gbk')
     BatResult.to_csv(path+'\\'+Aim_names+'\\储能'+'\\'+sta_data_date[0:10]+Aim_names_Chinese+'-'+str(jizu)+'.csv',index=True,header=True,encoding='gbk')
-#     # 画其他图
-#     fig1 = FIGUREplot.figecharts(i=dianzhan,Agcresult=Result,BatResult=BatResult)
-#     fig1.figAgc(file)
-#     fig1.figBat(file)
-#     # 画kp图-日更新的
-#     fig2 = FIGUREplot.figecharts(i=dianzhan,kpresult=ResultSingle)
-#     fig2.figKp(file)
-#     ResultSingle = pd.read_csv(r'E:\1伪D盘\AGC运行\广东华润海丰电厂储能电站\Kp\data.csv',header=0,encoding='gbk')
-#     Result = pd.read_csv(r'E:\1伪D盘\AGC运行\广东华润海丰电厂储能电站\AGC\2019-12-16海丰-2.csv',header=0,encoding='gbk')
-#     BatResult = pd.read_csv(r'E:\1伪D盘\AGC运行\广东华润海丰电厂储能电站\储能\2019-12-16海丰-2.csv',header=0,encoding='gbk')
+    # 画其他图
+    fig1 = FIGUREplot.figecharts(i=dianzhan,Agcresult=Result,BatResult=BatResult)
+    fig1.figAgc(file)
+    fig1.figBat(file)
+    # 画kp图-日更新的
+    fig2 = FIGUREplot.figecharts(i=dianzhan,kpresult=ResultSingle)
+    fig2.figKp(file)
     ResultSingle['time'] = ResultSingle.index
     report_operation(ResultSingle, file, Aim_names_Chinese, sta_data_date)
     report_running(ResultSingle, Result, BatResult, file, Aim_names_Chinese, sta_data_date,Jizu)
