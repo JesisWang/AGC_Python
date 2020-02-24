@@ -6,6 +6,7 @@ Created on 2019年7月29日
 import pandas as pd
 import numpy as np
 import time
+import datetime
 import math
 
 class operation_analyse:
@@ -153,8 +154,9 @@ class operation_analyse:
         AGC.index = time
         starttime = time[0]
         endtime = time[-1]
+        Unittime = datetime.timedelta(seconds = 1)
         Time = pd.date_range(start = starttime,end = endtime,freq = '15T')# 分钟单位是T
-        Time.insert(len(Time),Time[-1]+1)
+        Time.insert(len(Time),Time[-1]+Unittime)
         if  L1< 900:
             print('请检查数据，保证数据最少为900条，15分钟(每秒记录)的数据')
             return
@@ -845,7 +847,7 @@ class MX(operation_analyse):
         meankp = meank1*meank2*meank3
         sumD = Result1.D.sum()
         Revenue = meankp*sumD*0.02*0.35*1000
-#         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
+        Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True)
         return meank1,meank2,meank3,meankp,sumD,Revenue,Result
 
 class GD(operation_analyse):
@@ -2872,7 +2874,7 @@ class HB(operation_analyse):
         sumD = Result.D.sum()
         print('k1:%.2f \n k2:%.2f \n k3:%.2f \n kp:%.2f \n D:%.2f' %(meank1,meank2,meank3,meankp,sumD))
         Revenue = sumD*(math.log(meankp)+1)*Yagc
-#         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True,index=False)
+        Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True)
         return meank1,meank2,meank3,meankp,sumD,Revenue,Result
 
 class cost_perunit():

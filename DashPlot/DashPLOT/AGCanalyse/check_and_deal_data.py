@@ -210,8 +210,8 @@ class deal_data():
         ResultSingle = pd.DataFrame(columns=['k1','k2','k3','kp','D','Revenue','Cost','elecFee','充电等效次数','放电等效次数','反调','不动','缓调','瞬间完成','有效','总次数','比例'])
         ResultSingle.loc[0] =k1,k2,k3,kp,D,Revenue,Cost,elecFee,Eqv_cycminus,Eqv_cycplus,Op1,Op2,Op3,Op4,S,M,P
 #         print(k1,k2,k3,kp,D)
-#         return Result,Result1,BatResult,ResultSingle
-        return kp,k1,k2,k3,D,Result_Agc
+        return Result,Result1,BatResult,ResultSingle
+#         return kp,k1,k2,k3,D,Result_Agc
 class data_flow(Check_data):
     
     def __init__(self,m=True):
