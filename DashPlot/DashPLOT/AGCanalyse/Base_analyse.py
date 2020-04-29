@@ -59,13 +59,13 @@ class operation_analyse:
         DETPN:标准调节稳定比例系数
         '''
         self.stationname = stationname
-        Stationname = ['新丰','云河','海丰','河源','鲤鱼江','恒运','宣化','准大','兴和','上都','平朔','同达']
-        Area =        ['蒙西','广东','广东','广东','广东' ,'广东','华北','蒙西','蒙西','华北','华北','华北']
+        Stationname = ['新丰','云河','海丰','河源','鲤鱼江','恒运','宣化','准大','兴和','上都','平朔','同达','测试厂']
+        Area =        ['蒙西','广东','广东','广东','广东' ,'广东','华北','蒙西','蒙西','华北','华北','华北','江苏']
         AREA = dict(zip(Stationname,Area))
-        Pe = [300,330,1050,600,300,300,330,300,300,600,300,300] # 机组额定功率
+        Pe = [300,330,1050,600,300,300,330,300,300,600,300,300,300] # 机组额定功率
         Pe = dict(zip(Stationname,Pe))
         self.Pe = Pe[stationname]
-        BatPe = [9,9,30,18,12,15,9,9,9,18,9,9] # 电池的额定功率，固定值，写死
+        BatPe = [9,9,30,18,12,15,9,9,9,18,9,9,10] # 电池的额定功率，固定值，写死
         BatPe = dict(zip(Stationname,BatPe))
         self.BatPe = BatPe[stationname]
         if AREA[stationname] == '蒙西':
@@ -86,6 +86,10 @@ class operation_analyse:
             self.Vn = self.Pe*0.015
             self.tn = 60
             self.detPn = self.Pe*0.01
+        elif AREA[stationname] == '江苏':
+            self.Vn = self.Pe*0.015
+            self.detPn = self.Pe*0.005
+        
         if p is not None:
             self.Pe = p
         if Dead1 is not None:
@@ -98,11 +102,7 @@ class operation_analyse:
             self.tn = t
         if DETPN is not None:
             self.detPn = self.Pe*DETPN
-        if time is not None:
-            self.time = pd.to_datetime(time,format='%Y-%m-%d %H:%M:%S')
-        else:
-            self.time = pd.date_range(start='00:00:00',periods=len(time),freq='1S')
-
+        
         self.df = pd.DataFrame(columns= ['Agc','Pbat','Pdg','Pall'])
         if not Agc is None:
             self.df['Agc'] = Agc
@@ -128,6 +128,11 @@ class operation_analyse:
         elif (Pbat is not None) and (Pdg is not None):
             self.df['Pall'] = Pbat + Pdg
             self.Pall = Pbat + Pdg
+        
+        if time is not None:
+            self.time = pd.to_datetime(time,format='%Y-%m-%d %H:%M:%S')
+        else:
+            self.time = pd.date_range(start='00:00:00',periods=len(time),freq='1S')
 
     def AGCstrength(self,detAgc = 2):
         '''
@@ -227,7 +232,7 @@ class operation_analyse:
                 Turnb = np.multiply(Record.ix[0:len(Record)-2,'flag'],Record.ix[1:,'flag'])
                 Result.ix[N,3] = Record.ix[0,'Agc']
                 Result.ix[N,4] = Record.ix[ctl,'Agc']
-                Result.ix[N,7] = abs(sum(Turnb[Turnb<0]))
+                Result.ix[N,7] = len(Turnb[Turnb<0])
                 Result.ix[N,8] = ctl
                 if len(Record) == 1:
                     # 只有一条（15min都是1条）
@@ -651,9 +656,9 @@ class MX(operation_analyse):
         '''
         if self.stationname in ['新丰','准大','兴和']:
             AGC = self.Agc
-            AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
+            AGC=AGC.asfreq(freq='s');AGC.index.freq='s'#AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');
             Pall = self.Pall
-            Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
+            Pall=Pall.asfreq(freq='s');Pall.index.freq='s'#Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');
             Prate = self.Pe
             dd1 = self.deadzone1 
             dd2 = self.deadzone2
@@ -889,10 +894,10 @@ class GD(operation_analyse):
         6——收益Revenue
         '''
         AGC = self.Agc
-        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
+        AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
         
         Pall = self.Pall
-        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
+        Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
         
         Prate = self.Pe
         dd1 = self.deadzone1
@@ -1121,7 +1126,7 @@ class GD(operation_analyse):
                                     if T2 != 0:
                                         D = flag[0]*(Agc - Pt0)
                                     else:
-                                        D = Pmax - Pt0
+                                        D = flag[0]*(Pmax - Pt0)
                                 else:
                                     D = 0
                                 
@@ -1310,7 +1315,7 @@ class GD(operation_analyse):
                             if T2 != 0:
                                 D = flag[0]*(Agc - Pt0)
                             else:
-                                D = Pmax - Pt0
+                                D = flag[0]*(Pmax - Pt0)
                         else:
                             D = 0
                         
@@ -1370,10 +1375,10 @@ class GD(operation_analyse):
         6——收益Revenue
         '''
         AGC = self.Agc
-        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC = AGC.asfreq(freq='s');AGC.index.freq='s'
+        AGC = AGC.asfreq(freq='s');AGC.index.freq='s'
         
         Pall = self.Pall
-        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall = Pall.asfreq(freq='s');Pall.index.freq='s'
+        Pall = Pall.asfreq(freq='s');Pall.index.freq='s'
         
         Prate = self.Pe
         DeadZone1,DeadZone2 = self.deadzone1,self.deadzone2
@@ -1506,7 +1511,7 @@ class GD(operation_analyse):
                                     if T2 != 0:
                                         D = flag[0]*(Pt2 - Pt0)
                                     else:
-                                        D = abs(Pmax - Pt0)
+                                        D = flag[0]*(Pmax - Pt0)
                                 else:
                                     D = 0
                                 
@@ -1654,7 +1659,7 @@ class GD(operation_analyse):
                             if T2 != 0:
                                 D = flag[0]*(Pt2 - Pt0)
                             else:
-                                D = abs(Pmax - Pt0)
+                                D = flag[0]*(Pmax - Pt0)
                         else:
                             D = 0
                         
@@ -1874,7 +1879,7 @@ class GD(operation_analyse):
                                 if T2 != 0:
                                     D = flag[0]*(Agc - Pt0)
                                 else:
-                                    D = Pmax - Pt0
+                                    D = flag[0]*(Pmax - Pt0)
                             else:
                                 D = 0
                             
@@ -2053,7 +2058,7 @@ class GD(operation_analyse):
                             if T2 != 0:
                                 D = flag[0]*(Agc - Pt0)
                             else:
-                                D = Pmax - Pt0
+                                D = flag[0]*(Pmax - Pt0)
                         else:
                             D = 0
                         
@@ -2384,7 +2389,7 @@ class GD(operation_analyse):
                                     if T2 != 0:
                                         D = flag[0]*(Agc - Pt0)
                                     else:
-                                        D = Pmax - Pt0
+                                        D = flag[0]*(Pmax - Pt0)
                                 else:
                                     D = 0
                                 
@@ -2559,7 +2564,7 @@ class GD(operation_analyse):
                             if T2 != 0:
                                 D = flag[0]*(Agc - Pt0)
                             else:
-                                D = Pmax - Pt0
+                                D = flag[0]*(Pmax - Pt0)
                         else:
                             D = 0
                         
@@ -2652,9 +2657,9 @@ class HB(operation_analyse):
         6——收益Revenue
         '''
         AGC = self.Agc
-        AGC.index = pd.to_datetime(AGC.index,format='%Y-%m-%d %H:%M:%S');AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
+        AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
         Pall = self.Pall
-        Pall.index = pd.to_datetime(Pall.index,format='%Y-%m-%d %H:%M:%S');Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
+        Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
         Prate = self.Pe
         dd1 = self.deadzone1
         dd2 = self.deadzone2
@@ -2877,6 +2882,104 @@ class HB(operation_analyse):
         Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True)
         return meank1,meank2,meank3,meankp,sumD,Revenue,Result
 
+class JS(operation_analyse):
+    """
+    :计算江苏的Kp值和收益
+    stationname:电站名称，需要给出
+    """
+    def Kp_Revenue(self,ScanR=1,VarAgc=0.005,p=1):
+        '''
+        :该文档是用来计算江苏区电站K-D-Revenue的函数
+        :各参数含义如下：
+        AGC:电网下达的AGC功率指令值，功率单位MW，时间间隔1秒
+        Pall:联合功率值，功率单位MW，时间间隔为1秒
+        RowNum:为计算样本采样点数，时间间隔为1秒，若相邻数据间的间隔不为1秒，请处理源数据，如一天的样本为86400个(秒)
+        Prate:机组的额定功率，单位MW，如300MW
+        vc:机组额定速率系数，如0.015倍的机组额定功率
+        detPn:标准响应偏差系数，如0.015的机组额定功率
+        ScanR:扫描频率，单位秒，如1秒
+        VarAgc:相邻Agc的区分界限系数，如0.005
+        :参数返回：
+        1——k1
+        2——k2
+        3——k3
+        4——Kp
+        5——里程D
+        6——收益Revenue
+        '''
+        AGC = self.Agc
+        AGC=AGC.asfreq(freq='s');AGC.index.freq='s'
+        
+        Pall = self.Pall
+        Pall=Pall.asfreq(freq='s');Pall.index.freq='s'
+        
+        Prate = self.Pe
+        detPn = self.detPn
+        Vn = self.Vn
+        detAgc = VarAgc*Prate
+        Result = pd.DataFrame(columns = ['AGC','Pt0','T0','Pt1','T1','Pt2','T2','Vj','Kv','Ks','Kp','Kv-5'])
+        lasti = AGC.index[0]
+        Agc = AGC[0]
+        state = 0
+        count = 0
+        Result.loc[count,:] = 0
+        Result.loc[count,['AGC','Pt0','T0']] = Agc,Pall[0],lasti
+        Pt0,T0 = Pall[0],lasti
+        Pt1,T1,Pt2,T2 = [0]*4
+        if Agc>Pt0:
+            flag = 1
+        else:
+            flag = -1
+        for i in AGC.index:
+            if not np.isnan(AGC[i]) and not np.isnan(Pall[i]):
+                if (i-lasti).total_seconds() >= ScanR:
+                    if abs(AGC[i]-Agc) >= detAgc:
+                        if Pt1 == 0:
+                            Pt1,Pt2 = [Pall[lasti]]*2
+                            T1,T2 = [lasti]*2
+                        else:
+                            Pt2 = Pall[lasti]
+                            T2 = lasti
+                        Vj = (Pt1-Pt0)*flag/(T1-T0).total_seconds()*60
+                        Kv = Vj/Vn
+                        if Kv>=5:
+                            Kv_5 = 5
+                        else:
+                            Kv_5 = Kv
+                        Ri = Pt0
+                        detTi = (T2-T0).total_seconds()
+                        detRi = Vn*detTi/60
+                        if abs(Agc-Pt0) <= detRi:
+                            Si = p*abs(Agc-Pt2)/Prate*100
+                        else:
+                            if flag>0:
+                                Si = p*min(abs(Agc-Pt2)/Prate,abs(Ri+detRi-Pt2)/Prate)*100
+                            else:
+                                Si = p*min(abs(Agc-Pt2)/Prate,abs(Ri-detRi-Pt2)/Prate)*100
+                        Ks = (3*detPn-Si)/detPn
+                        Kp = max(0,Kv+Ks)
+                        Result.loc[count,['Pt1','T1','Pt2','T2','Vj','Kv','Ks','Kp','Kv-5']]=Pt1,T1,Pt2,T2,Vj,Kv,Ks,Kp,Kv_5
+                        count += 1
+                        Result.loc[count,:] = 0
+                        state = 0
+                        Agc,Pt0,T0 = AGC[i],Pall[i],i
+                        Pt1,T1,Pt2,T2 = [0]*4
+                        Result.loc[count,['AGC','Pt0','T0']] = Agc,Pt0,T0
+                        if Agc>Pt0:
+                            flag = 1
+                        else:
+                            flag = -1
+                    else:
+                        if (Agc-Pall[i])*flag<=0 and state == 0:
+                            T1 = i
+                            Pt1 = Pall[i]
+                            state = 1
+                    if i == AGC.index[-1]:
+                        b = 1 
+                    lasti = i
+        Result.to_csv(r'C:\Users\JesisW\Desktop\结果.csv',encoding='gbk',header=True)
+        return Result
+
 class cost_perunit():
     """
     :计算各储能电站运行时的单位MWh成本
@@ -3066,3 +3169,72 @@ class Heat_analyse():
                     Reset = 0
                     data.loc[count,:] = [i_start,i_end,(i_end-i_start).seconds]
         return data
+
+class small_task():
+    '''
+    :小型的零散的任务
+    '''
+    def cal_Agc_energy_need(self,Agc,start_time,end_time,key):
+        '''
+        :augment Agc:包含AGC数据和时间列,index为时间格式
+        :augment start_time:计算起始时间
+        :augment end_time:计算终止时间
+        :augment key:索引参数
+        :return 输出该段时间内的指令变化幅度累加和能量累加
+        '''
+        T = pd.date_range(start=start_time, end=end_time, periods=2)
+        df = Agc[(Agc.index>=T[0]) & (Agc.index<T[1])]
+        up,down = 0,0
+        temp_up,temp_down =0,0
+        AGC0 = df[key][0]
+        detup,detdown = 0,0
+        print(f'起始AGC:{AGC0}')
+        for i in df.index:
+            if abs(df[key][i]-AGC0)>3:
+                if df[key][i]>AGC0:
+                    temp_up = df[key][i]-AGC0
+                    temp_down = 0
+                    detup += temp_up
+                else:
+                    temp_down = -df[key][i]+AGC0
+                    temp_up = 0
+                    detdown += temp_down
+                AGC0 = df[key][i]
+            up = up+temp_up/3600
+            down = down+temp_down/3600
+        print(f'AGC指令向上累积{up:.2f} MWh,AGC指令向下累积{down:.2f} MWh')
+        print(f'指令差值向上累积{detup:.2f},指令差值向下累积{detdown:.2f}')
+        print(f'终止AGC:{AGC0}')
+    
+    def cal_Pdg_energy_need(self,Agc,start_time,end_time,key):
+        '''
+        :augment Agc:包含AGC数据,机组数据和时间列,index为时间格式
+        :augment start_time:计算起始时间
+        :augment end_time:计算终止时间
+        :augment key:索引参数,为AGC和机组功率
+        :return 输出该段时间的AGC与机组功率差值的能量累加和需求幅度累加
+        '''
+        Agcname = key[0]
+        Pdgname = key[1]
+        T = pd.date_range(start=start_time, end=end_time, periods=2)
+        df = Agc[(Agc.index>=T[0]) & (Agc.index<T[1])]
+        up,down = 0,0
+        AGC0 = df[Agcname][0]
+        detup,detdown = 0,0
+        print(f'起始AGC:{AGC0}')
+        for i in df.index:
+            if abs(df[Agcname][i]-AGC0)>3:
+                if df[Agcname][i]>AGC0:
+                    up += df[Agcname][i]-df[Pdgname][i]
+                else:
+                    down += -df[Agcname][i]+df[Pdgname][i]
+                AGC0 = df[Agcname][i]
+            if df[Agcname][i]>df[Pdgname][i]:
+                detup = detup+df[Agcname][i]-df[Pdgname][i]
+            else:
+                detdown = detdown-df[Agcname][i]+df[Pdgname][i]
+        detup = detup/3600
+        detdown = detdown/3600
+        print(f'指令差值向上累积{up:.2f} MW,指令差值向下累积{down:.2f} MW')
+        print(f'指令差值向上累积{detup:.2f} MWh,指令差值向下累积{detdown:.2f} MWh')
+        print(f'终止AGC:{AGC0}')
